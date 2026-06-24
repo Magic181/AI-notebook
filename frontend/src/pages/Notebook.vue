@@ -1,35 +1,46 @@
 <template>
-  <div class="flex h-screen bg-[var(--bg)]">
-    <aside class="w-64 border-r border-[var(--border)] bg-[var(--bg-secondary)] flex flex-col">
-      <div class="p-4 border-b border-[var(--border)]">
-        <h1 class="text-lg font-semibold text-[var(--primary)]">AI Notebook</h1>
-      </div>
-      <div class="flex-1 p-4 overflow-y-auto">
-        <p class="text-sm text-[var(--text-secondary)]">Notebook</p>
-      </div>
-    </aside>
-    <main class="flex-1 flex flex-col">
-      <header class="h-14 border-b border-[var(--border)] flex items-center px-6">
+  <div class="flex h-full flex-col">
+    <header class="flex h-14 shrink-0 items-center justify-between border-b border-[var(--border)] px-6">
+      <div>
         <h2 class="font-medium text-[var(--text)]">{{ notebook?.name || 'Notebook' }}</h2>
-      </header>
-      <div class="flex-1 p-6 overflow-y-auto">
-        <p class="text-[var(--text-secondary)]">Documents and chat will appear here.</p>
+        <p v-if="notebook?.description" class="text-sm text-[var(--text-secondary)]">
+          {{ notebook.description }}
+        </p>
       </div>
-    </main>
+      <router-link
+        v-if="notebook"
+        :to="`/chat/${notebook.id}`"
+        class="rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--primary-hover)]"
+      >
+        开始对话
+      </router-link>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-6">
+      <div class="rounded-2xl border border-dashed border-[var(--border)] py-16 text-center">
+        <p class="text-4xl">📄</p>
+        <p class="mt-4 text-[var(--text)]">文档管理</p>
+        <p class="mt-2 text-sm text-[var(--text-secondary)]">
+          上传文档后，AI 将自动阅读并建立知识索引
+        </p>
+        <p class="mt-4 text-xs text-[var(--text-secondary)]">（Batch 4 实现）</p>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useNotebookStore } from '@/stores/notebook'
 
 const route = useRoute()
 const notebookStore = useNotebookStore()
-const notebook = notebookStore.currentNotebook
+
+const notebook = computed(() => notebookStore.currentNotebook)
 
 onMounted(() => {
   const id = Number(route.params.id)
-  if (id) notebookStore.fetchNotebook(id)
+  if (id) notebookStore.fetchNotebook(id).catch(() => {})
 })
 </script>

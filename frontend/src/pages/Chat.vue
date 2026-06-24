@@ -1,30 +1,57 @@
 <template>
-  <div class="flex h-screen bg-[var(--bg)]">
-    <aside class="w-64 border-r border-[var(--border)] bg-[var(--bg-secondary)] flex flex-col">
-      <div class="p-4 border-b border-[var(--border)]">
-        <h1 class="text-lg font-semibold text-[var(--primary)]">AI Notebook</h1>
+  <div class="flex h-full flex-col">
+    <header class="flex h-14 shrink-0 items-center border-b border-[var(--border)] px-6">
+      <h2 class="font-medium text-[var(--text)]">AI 对话</h2>
+    </header>
+
+    <div class="flex-1 space-y-4 overflow-y-auto p-6">
+      <div
+        v-if="chatStore.messages.length === 0"
+        class="flex h-full flex-col items-center justify-center text-center"
+      >
+        <p class="text-4xl">💬</p>
+        <p class="mt-4 text-[var(--text)]">开始与你的资料对话</p>
+        <p class="mt-2 text-sm text-[var(--text-secondary)]">
+          基于笔记本中的文档进行智能问答
+        </p>
       </div>
-      <div class="flex-1 p-4 overflow-y-auto">
-        <p class="text-sm text-[var(--text-secondary)]">Chat History</p>
+
+      <div
+        v-for="msg in chatStore.messages"
+        :key="msg.id"
+        class="flex"
+        :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
+      >
+        <div
+          class="max-w-[70%] rounded-2xl px-4 py-3 text-sm"
+          :class="
+            msg.role === 'user'
+              ? 'bg-[var(--primary)] text-white'
+              : 'bg-[var(--bg-secondary)] text-[var(--text)]'
+          "
+        >
+          {{ msg.content }}
+        </div>
       </div>
-    </aside>
-    <main class="flex-1 flex flex-col">
-      <header class="h-14 border-b border-[var(--border)] flex items-center px-6">
-        <h2 class="font-medium text-[var(--text)]">Chat</h2>
-      </header>
-      <div class="flex-1 p-6 overflow-y-auto">
-        <p class="text-[var(--text-secondary)]">Start a conversation about your documents.</p>
-      </div>
-      <div class="p-4 border-t border-[var(--border)]">
+    </div>
+
+    <div class="shrink-0 border-t border-[var(--border)] p-4">
+      <form class="flex gap-3" @submit.prevent="sendMessage">
         <input
           v-model="input"
           type="text"
-          placeholder="Ask a question..."
-          class="w-full px-4 py-3 rounded-xl border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] outline-none focus:border-[var(--primary)]"
-          @keyup.enter="sendMessage"
+          placeholder="输入你的问题..."
+          class="flex-1 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-[var(--text)] outline-none focus:border-[var(--primary)]"
         />
-      </div>
-    </main>
+        <button
+          type="submit"
+          :disabled="!input.trim()"
+          class="rounded-xl bg-[var(--primary)] px-5 py-3 text-sm font-medium text-white hover:bg-[var(--primary-hover)] disabled:opacity-50"
+        >
+          发送
+        </button>
+      </form>
+    </div>
   </div>
 </template>
 

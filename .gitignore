@@ -11,6 +11,8 @@ __pycache__/
 .Python
 venv/
 .venv/
+backend/venv/
+backend/db.sqlite3
 env/
 .env
 .env.*
@@ -49,6 +51,7 @@ htmlcov/
 # Database / local data
 *.db
 *.sqlite3
+backend/db.sqlite3
 
 # Docker volumes
 data/

@@ -11,7 +11,7 @@ export const useNotebookStore = defineStore('notebook', () => {
     loading.value = true
     try {
       const { data } = await notebookApi.list()
-      notebooks.value = data
+      notebooks.value = Array.isArray(data) ? data : data.items ?? []
     } finally {
       loading.value = false
     }
@@ -22,5 +22,18 @@ export const useNotebookStore = defineStore('notebook', () => {
     currentNotebook.value = data
   }
 
-  return { notebooks, currentNotebook, loading, fetchNotebooks, fetchNotebook }
+  async function createNotebook(payload: Partial<Notebook>) {
+    const { data } = await notebookApi.create(payload)
+    notebooks.value.unshift(data)
+    return data
+  }
+
+  return {
+    notebooks,
+    currentNotebook,
+    loading,
+    fetchNotebooks,
+    fetchNotebook,
+    createNotebook,
+  }
 })

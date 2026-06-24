@@ -10,7 +10,7 @@ export interface Notebook {
 }
 
 export const notebookApi = {
-  list: () => api.get<Notebook[]>('/notebooks/'),
+  list: () => api.get<Notebook[] | { items: Notebook[] }>('/notebooks/'),
   get: (id: number) => api.get<Notebook>(`/notebooks/${id}/`),
   create: (data: Partial<Notebook>) => api.post<Notebook>('/notebooks/', data),
   update: (id: number, data: Partial<Notebook>) =>

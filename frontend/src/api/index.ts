@@ -1,4 +1,5 @@
-import axios from 'axios'
+import axios, { type AxiosError } from 'axios'
+import { ElMessage } from 'element-plus'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -16,14 +17,41 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+interface ApiBody<T = unknown> {
+  code: number
+  message: string
+  data: T
+  errors?: Array<{ field: string; message: string }>
+}
+
 api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
+  (response) => {
+    const body = response.data as ApiBody
+    if (body && typeof body === 'object' && 'code' in body && 'data' in body) {
+      if (body.code >= 400) {
+        return Promise.reject(new Error(body.message || 'Request failed'))
+      }
+      response.data = body.data
+    }
+    return response
+  },
+  (error: AxiosError<ApiBody>) => {
+    const status = error.response?.status
+    const message =
+      error.response?.data?.message ||
+      error.message ||
+      'Network error'
+
+    if (status === 401) {
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
-      window.location.href = '/login'
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login'
+      }
+    } else if (status !== 401) {
+      ElMessage.error(message)
     }
+
     return Promise.reject(error)
   },
 )
