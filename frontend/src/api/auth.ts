@@ -27,5 +27,6 @@ export const authApi = {
   register: (data: RegisterParams) => api.post<TokenResponse>('/auth/register/', data),
   refresh: (refresh: string) =>
     api.post<TokenResponse>('/auth/refresh/', { refresh }),
+  logout: (refresh: string) => api.post<void>('/auth/logout/', { refresh }),
   me: () => api.get<UserProfile>('/auth/me/'),
 }

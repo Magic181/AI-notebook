@@ -18,6 +18,7 @@ interface ApiBody<T = unknown> {
 }
 
 let refreshPromise: Promise<string> | null = null
+let skipAuthRedirect = false
 
 function saveTokens(access: string, refresh?: string) {
   localStorage.setItem('access_token', access)
@@ -33,9 +34,16 @@ function clearTokens() {
 
 function redirectToLogin() {
   clearTokens()
-  if (!window.location.pathname.startsWith('/login')) {
+  if (!skipAuthRedirect && !window.location.pathname.startsWith('/login')) {
     window.location.href = '/login'
   }
+}
+
+export function runWithoutAuthRedirect<T>(fn: () => Promise<T>): Promise<T> {
+  skipAuthRedirect = true
+  return fn().finally(() => {
+    skipAuthRedirect = false
+  })
 }
 
 async function refreshAccessToken(): Promise<string> {
@@ -69,11 +77,14 @@ async function ensureFreshToken(): Promise<void> {
 }
 
 api.interceptors.request.use(async (config) => {
-  const isAuthRefresh = config.url?.includes('/auth/refresh/')
-  const isAuthLogin = config.url?.includes('/auth/login/')
-  const isAuthRegister = config.url?.includes('/auth/register/')
+  const url = config.url ?? ''
+  const isAuthEndpoint =
+    url.includes('/auth/refresh/') ||
+    url.includes('/auth/login/') ||
+    url.includes('/auth/register/') ||
+    url.includes('/auth/logout/')
 
-  if (!isAuthRefresh && !isAuthLogin && !isAuthRegister) {
+  if (!isAuthEndpoint) {
     await ensureFreshToken().catch(() => {})
   }
 
@@ -86,6 +97,9 @@ api.interceptors.request.use(async (config) => {
 
 api.interceptors.response.use(
   (response) => {
+    if (response.status === 204) {
+      return response
+    }
     const body = response.data as ApiBody
     if (body && typeof body === 'object' && 'code' in body && 'data' in body) {
       if (body.code >= 400) {
@@ -106,7 +120,8 @@ api.interceptors.response.use(
     const isAuthEndpoint =
       originalRequest?.url?.includes('/auth/login/') ||
       originalRequest?.url?.includes('/auth/register/') ||
-      originalRequest?.url?.includes('/auth/refresh/')
+      originalRequest?.url?.includes('/auth/refresh/') ||
+      originalRequest?.url?.includes('/auth/me/')
 
     if (status === 401 && originalRequest && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true
@@ -125,7 +140,7 @@ api.interceptors.response.use(
       }
     }
 
-    if (status === 401) {
+    if (status === 401 && !skipAuthRedirect) {
       redirectToLogin()
     } else if (status !== 401) {
       ElMessage.error(message)

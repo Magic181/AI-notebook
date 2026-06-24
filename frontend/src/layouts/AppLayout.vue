@@ -92,15 +92,12 @@ function isActive(path: string) {
   return route.path === path
 }
 
-function handleLogout() {
-  userStore.logout()
+async function handleLogout() {
+  await userStore.logout()
   router.push('/login')
 }
 
 onMounted(() => {
-  if (userStore.isLoggedIn) {
-    userStore.fetchProfile().catch(() => {})
-  }
   notebookStore.fetchNotebooks().catch(() => {})
 })
 </script>

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
+import { useUserStore } from '@/stores/user'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -43,15 +44,18 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach((to) => {
-  const token = localStorage.getItem('access_token')
-  const isLoggedIn = !!token
+router.beforeEach(async (to) => {
+  const userStore = useUserStore()
 
-  if (to.meta.requiresAuth && !isLoggedIn) {
+  if (!userStore.authReady) {
+    await userStore.initAuth()
+  }
+
+  if (to.meta.requiresAuth && !userStore.isLoggedIn) {
     return { name: 'Login', query: { redirect: to.fullPath } }
   }
 
-  if (to.meta.guestOnly && isLoggedIn) {
+  if (to.meta.guestOnly && userStore.isLoggedIn) {
     return { name: 'Home' }
   }
 })
