@@ -47,7 +47,7 @@
         </button>
       </header>
 
-      <div class="flex-1 space-y-4 overflow-y-auto p-6">
+      <div ref="messagesViewport" class="flex-1 space-y-4 overflow-y-auto p-6">
         <div
           v-if="loadingMessages"
           class="flex h-full items-center justify-center text-sm text-[var(--text-secondary)]"
@@ -59,10 +59,10 @@
           v-else-if="messages.length === 0"
           class="flex h-full flex-col items-center justify-center text-center"
         >
-          <p class="text-4xl">💬</p>
-          <p class="mt-4 text-[var(--text)]">开始与你的资料对话</p>
-          <p class="mt-2 text-sm text-[var(--text-secondary)]">
-            将基于该 Notebook 的文档进行检索并回答
+          <div class="mb-4 h-10 w-10 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]" />
+          <p class="text-[var(--text)]">开始新的对话</p>
+          <p class="mt-2 max-w-md text-sm text-[var(--text-secondary)]">
+            {{ emptyStateHint }}
           </p>
         </div>
 
@@ -75,7 +75,7 @@
           >
             <div class="max-w-[80%]">
               <div
-                class="rounded-2xl px-4 py-3 text-sm"
+                class="whitespace-pre-wrap break-words rounded-lg px-4 py-3 text-sm leading-6"
                 :class="
                   msg.role === 'user'
                     ? 'bg-[var(--primary)] text-white'
@@ -85,35 +85,10 @@
                 {{ msg.content }}
               </div>
 
-              <div
-                v-if="msg.role === 'assistant' && msg.citations?.length"
-                class="mt-2 space-y-2"
-              >
-                <p class="text-xs text-[var(--text-secondary)]">引用来源</p>
-                <div
-                  v-for="(c, idx) in msg.citations"
-                  :key="`${msg.id}-${idx}`"
-                  class="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3 text-xs text-[var(--text-secondary)]"
-                >
-                  <template v-if="c.source_type === 'web'">
-                    <a
-                      :href="c.url"
-                      target="_blank"
-                      rel="noreferrer"
-                      class="font-medium text-[var(--primary)] hover:underline"
-                    >
-                      {{ c.title }} · 网页 #{{ c.position }}
-                    </a>
-                    <p class="mt-1 line-clamp-3">{{ c.content }}</p>
-                  </template>
-                  <template v-else>
-                    <p class="font-medium text-[var(--text)]">
-                      {{ c.document_name }} · chunk #{{ c.position }}
-                    </p>
-                    <p class="mt-1 line-clamp-3">{{ c.chunk_text }}</p>
-                  </template>
-                </div>
-              </div>
+              <CitationList
+                v-if="msg.role === 'assistant'"
+                :citations="msg.citations || []"
+              />
             </div>
           </div>
 
@@ -160,9 +135,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { chatApi, type Conversation, type Message, type SearchMode } from '@/api/chat'
+import CitationList from '@/components/chat/CitationList.vue'
 
 const route = useRoute()
 const notebookId = computed(() => Number(route.params.id))
@@ -172,6 +148,7 @@ const activeConversationId = ref<number | null>(null)
 const messages = ref<Message[]>([])
 const input = ref('')
 const searchMode = ref<SearchMode>('local')
+const messagesViewport = ref<HTMLElement | null>(null)
 
 const loadingMessages = ref(false)
 const creatingConversation = ref(false)
@@ -187,6 +164,19 @@ const headerHint = computed(() => {
   if (!activeConversationId.value) return '正在初始化会话...'
   return `会话 #${activeConversationId.value}`
 })
+
+const emptyStateHint = computed(() => {
+  if (searchMode.value === 'web') return '当前会优先使用联网搜索结果回答，适合查询最新资料。'
+  if (searchMode.value === 'hybrid') return '当前会同时结合 Notebook 文档和联网搜索结果回答。'
+  return '当前会基于该 Notebook 的已解析文档进行检索并回答。'
+})
+
+async function scrollMessagesToBottom() {
+  await nextTick()
+  const el = messagesViewport.value
+  if (!el) return
+  el.scrollTop = el.scrollHeight
+}
 
 async function loadConversations() {
   const id = notebookId.value
@@ -225,6 +215,7 @@ async function loadMessages() {
   try {
     const { data } = await chatApi.listMessages(activeConversationId.value)
     messages.value = data
+    await scrollMessagesToBottom()
   } finally {
     loadingMessages.value = false
   }
@@ -242,6 +233,7 @@ async function sendMessage() {
       searchMode.value,
     )
     messages.value = [...messages.value, data.user_message, data.assistant_message]
+    await scrollMessagesToBottom()
   } catch {
     input.value = content
   } finally {
