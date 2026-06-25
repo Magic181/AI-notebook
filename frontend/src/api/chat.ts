@@ -26,6 +26,7 @@ export interface WebCitation {
 }
 
 export type Citation = DocumentCitation | WebCitation
+export type SearchMode = 'local' | 'web' | 'hybrid'
 
 export interface Message {
   id: number
@@ -43,13 +44,17 @@ export const chatApi = {
     api.post<Conversation>(`/notebooks/${notebookId}/conversations/`, { title }),
   listMessages: (conversationId: number) =>
     api.get<Message[]>(`/conversations/${conversationId}/messages/`),
-  sendMessage: (conversationId: number, content: string, webSearch = false) =>
+  sendMessage: (
+    conversationId: number,
+    content: string,
+    searchMode: SearchMode = 'local',
+  ) =>
     api.post<{
       user_message: Message
       assistant_message: Message
     }>(`/conversations/${conversationId}/messages/send/`, {
       content,
-      web_search: webSearch,
+      search_mode: searchMode,
     }),
 }
 

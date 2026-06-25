@@ -134,8 +134,8 @@ class RAGPipeline:
 
 ### 当前联网搜索
 
-- 前端 Chat 页面勾选“联网搜索”
-- 后端调用 Tavily Search
+- 前端 Chat 页面选择“联网搜索”或“混合”模式
+- 后端按 `search_mode` 决定是否调用 Tavily Search
 - 搜索结果作为 `[W1]`、`[W2]` 加入上下文
 - 回答中可展示网页来源链接
 

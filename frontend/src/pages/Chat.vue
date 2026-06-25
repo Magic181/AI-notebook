@@ -122,14 +122,23 @@
       </div>
 
       <div class="shrink-0 border-t border-[var(--border)] p-4">
-        <label class="mb-3 flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-          <input
-            v-model="webSearch"
-            type="checkbox"
-            class="h-4 w-4 accent-[var(--primary)]"
-          />
-          <span>联网搜索</span>
-        </label>
+        <div class="mb-3 inline-flex rounded-xl border border-[var(--border)] bg-[var(--bg)] p-1 text-sm">
+          <button
+            v-for="mode in searchModes"
+            :key="mode.value"
+            type="button"
+            class="rounded-lg px-3 py-1.5 transition-colors"
+            :class="
+              searchMode === mode.value
+                ? 'bg-[var(--primary)] text-white'
+                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'
+            "
+            :disabled="sending"
+            @click="searchMode = mode.value"
+          >
+            {{ mode.label }}
+          </button>
+        </div>
         <form class="flex gap-3" @submit.prevent="sendMessage">
           <input
             v-model="input"
@@ -153,7 +162,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { chatApi, type Conversation, type Message } from '@/api/chat'
+import { chatApi, type Conversation, type Message, type SearchMode } from '@/api/chat'
 
 const route = useRoute()
 const notebookId = computed(() => Number(route.params.id))
@@ -162,11 +171,17 @@ const conversations = ref<Conversation[]>([])
 const activeConversationId = ref<number | null>(null)
 const messages = ref<Message[]>([])
 const input = ref('')
-const webSearch = ref(false)
+const searchMode = ref<SearchMode>('local')
 
 const loadingMessages = ref(false)
 const creatingConversation = ref(false)
 const sending = ref(false)
+
+const searchModes: Array<{ label: string; value: SearchMode }> = [
+  { label: '本地资料', value: 'local' },
+  { label: '联网搜索', value: 'web' },
+  { label: '混合', value: 'hybrid' },
+]
 
 const headerHint = computed(() => {
   if (!activeConversationId.value) return '正在初始化会话...'
@@ -224,7 +239,7 @@ async function sendMessage() {
     const { data } = await chatApi.sendMessage(
       activeConversationId.value,
       content,
-      webSearch.value,
+      searchMode.value,
     )
     messages.value = [...messages.value, data.user_message, data.assistant_message]
   } catch {

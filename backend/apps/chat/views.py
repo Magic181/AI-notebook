@@ -23,6 +23,7 @@ from .web_search import WebSearchError, search_web
 logger = logging.getLogger(__name__)
 AI_FAILURE_MESSAGE = "回答生成失败，请稍后重试，或检查 AI 服务配置。"
 WEB_SEARCH_DEGRADED_MESSAGE = "联网搜索失败，已基于本地资料回答。"
+WEB_ONLY_SEARCH_DEGRADED_MESSAGE = "联网搜索失败，已基于模型通用能力回答。"
 
 
 def get_user_notebook(user, notebook_id: int) -> Notebook:
@@ -75,7 +76,10 @@ class ConversationSendMessageView(APIView):
         serializer = SendMessageSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         content = serializer.validated_data["content"].strip()
-        use_web_search = serializer.validated_data.get("web_search", False)
+        search_mode = serializer.validated_data.get(
+            "search_mode",
+            SendMessageSerializer.SEARCH_MODE_LOCAL,
+        )
 
         with transaction.atomic():
             user_msg = Message.objects.create(
@@ -89,8 +93,15 @@ class ConversationSendMessageView(APIView):
         try:
             top_k = int(os.getenv("RAG_TOP_K", "5"))
             max_ctx = int(os.getenv("RAG_MAX_CONTEXT_CHARS", "8000"))
-            citations = retrieve_citations(conv.notebook_id, content, top_k=top_k)
-            if use_web_search:
+            if search_mode in (
+                SendMessageSerializer.SEARCH_MODE_LOCAL,
+                SendMessageSerializer.SEARCH_MODE_HYBRID,
+            ):
+                citations = retrieve_citations(conv.notebook_id, content, top_k=top_k)
+            if search_mode in (
+                SendMessageSerializer.SEARCH_MODE_WEB,
+                SendMessageSerializer.SEARCH_MODE_HYBRID,
+            ):
                 try:
                     web_results = search_web(content)
                 except WebSearchError:
@@ -108,7 +119,12 @@ class ConversationSendMessageView(APIView):
             )
             answer = call_deepseek_chat(messages)
             if web_search_degraded:
-                answer = f"{WEB_SEARCH_DEGRADED_MESSAGE}\n\n{answer}"
+                degraded_message = (
+                    WEB_ONLY_SEARCH_DEGRADED_MESSAGE
+                    if search_mode == SendMessageSerializer.SEARCH_MODE_WEB
+                    else WEB_SEARCH_DEGRADED_MESSAGE
+                )
+                answer = f"{degraded_message}\n\n{answer}"
         except DeepSeekError as exc:
             logger.exception("Failed to generate chat response for conversation %s", conv.id)
             answer = getattr(exc, "user_message", AI_FAILURE_MESSAGE)

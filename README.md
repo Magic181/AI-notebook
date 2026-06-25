@@ -11,7 +11,7 @@ AI 知识工作台 — 上传资料、AI 阅读、智能问答、引用原文。
 | Notebook 管理 | ✅ 已完成 | CRUD、收藏、搜索、分页 |
 | 文档管理 | ✅ 已完成 | 上传、解析、分块、状态追踪（TXT/MD/PDF/DOCX） |
 | AI 聊天 + RAG | ✅ 已完成 | 会话、消息、关键词 RAG、引用来源、DeepSeek 调用 |
-| 联网搜索 | ✅ 已完成 | Tavily 搜索开关、网页来源引用 |
+| 联网搜索 | ✅ 已完成 | 本地资料 / 联网搜索 / 混合模式、网页来源引用 |
 
 ## 技术栈
 
@@ -128,7 +128,7 @@ AI-Notebook/
 | GET/DELETE | `/api/v1/documents/{id}/` | 文档详情 / 删除 |
 | GET/POST | `/api/v1/notebooks/{id}/conversations/` | 会话列表 / 创建 |
 | GET | `/api/v1/conversations/{id}/messages/` | 消息列表 |
-| POST | `/api/v1/conversations/{id}/messages/send/` | 发送消息，可选联网搜索 |
+| POST | `/api/v1/conversations/{id}/messages/send/` | 发送消息，支持本地 / 联网 / 混合搜索模式 |
 
 ## 测试
 

@@ -370,14 +370,15 @@ POST /api/v1/conversations/{conversation_id}/messages/send/
 
 {
   "content": "请总结这份资料",
-  "web_search": false
+  "search_mode": "local"
 }
 ```
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | content | string | 必填 | 用户问题 |
-| web_search | boolean | false | true 时启用 Tavily 联网搜索 |
+| search_mode | string | local | `local` 只查 Notebook，`web` 只联网搜索，`hybrid` 混合搜索 |
+| web_search | boolean | false | 旧字段，兼容保留；`true` 等价于 `search_mode=hybrid` |
 
 **响应 200：**
 
@@ -418,7 +419,7 @@ POST /api/v1/conversations/{conversation_id}/messages/send/
 }
 ```
 
-不开启联网搜索时，只使用 Notebook 内已解析文档和模型通用能力。开启联网搜索时，后端会把 Tavily 搜索结果作为 `[W1]`、`[W2]` 等网页来源加入上下文。
+`local` 模式只使用 Notebook 内已解析文档和模型通用能力；`web` 模式只使用 Tavily 联网搜索结果；`hybrid` 模式会同时使用 Notebook 文档片段和 Tavily 搜索结果。网页结果会作为 `[W1]`、`[W2]` 等来源加入上下文。
 
 ---
 
