@@ -12,6 +12,7 @@ AI 知识工作台 — 上传资料、AI 阅读、智能问答、引用原文。
 | 文档管理 | ✅ 已完成 | 上传、解析、分块、状态追踪（TXT/MD/PDF/DOCX） |
 | AI 聊天 + RAG | ✅ 已完成 | 会话、消息、关键词 RAG、引用来源、DeepSeek 调用 |
 | 联网搜索 | ✅ 已完成 | 本地资料 / 联网搜索 / 混合模式、网页来源引用 |
+| 前端体验 | ✅ 已优化 | Chat 引用组件、文档上传列表、Notebook 页面、认证页和侧栏 UI 规范化 |
 
 ## 技术栈
 
@@ -97,6 +98,7 @@ AI-Notebook/
 ├── frontend/                # Vue3 前端
 │   └── src/
 │       ├── api/             # API 封装
+│       ├── components/      # 业务组件（文档上传、引用来源等）
 │       ├── layouts/         # 布局组件
 │       ├── pages/           # 页面
 │       └── stores/          # Pinia 状态
@@ -144,6 +146,13 @@ cmd /c node_modules\.bin\vue-tsc.cmd --noEmit
 ```
 
 完整规范见 [API 规范](docs/engineering/API规范.md)。
+
+## 近期优化
+
+- Chat 后端已拆出 `services.py` 和 `search_modes.py`，View 只负责 HTTP 边界和消息落库。
+- Chat 前端引用来源已拆为独立组件，支持文档 / 网页来源差异化展示。
+- 前端主要页面已统一圆角、移除跨平台不稳定字符图标，并按 `.gitattributes` 固定 LF 行尾。
+- 本地测试上传目录和一次性测试脚本已加入忽略规则，避免误提交本地数据。
 
 ## 文档
 
