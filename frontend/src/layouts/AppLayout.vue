@@ -12,21 +12,28 @@
         >
           AI Notebook
         </router-link>
+        <router-link
+          v-else
+          to="/"
+          class="text-sm font-semibold text-[var(--primary)]"
+        >
+          AI
+        </router-link>
         <button
           class="rounded-lg p-2 text-[var(--text-secondary)] hover:bg-[var(--border)]"
           @click="uiStore.toggleSidebar()"
         >
-          ☰
+          {{ uiStore.sidebarCollapsed ? '展开' : '收起' }}
         </button>
       </div>
 
       <nav class="flex-1 overflow-y-auto p-3">
         <router-link
           to="/"
-          class="mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors"
+          class="mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors"
           :class="isActive('/') ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--border)]'"
         >
-          <span>📚</span>
+          <span class="shrink-0 text-xs font-semibold">NB</span>
           <span v-if="!uiStore.sidebarCollapsed">我的笔记本</span>
         </router-link>
 
@@ -53,17 +60,17 @@
           {{ userStore.profile.username }}
         </div>
         <button
-          class="mb-2 flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--border)]"
+          class="mb-2 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--border)]"
           @click="uiStore.toggleDarkMode()"
         >
-          <span>{{ uiStore.darkMode ? '☀️' : '🌙' }}</span>
+          <span class="shrink-0 text-xs font-semibold">{{ uiStore.darkMode ? '亮' : '暗' }}</span>
           <span v-if="!uiStore.sidebarCollapsed">{{ uiStore.darkMode ? '浅色模式' : '深色模式' }}</span>
         </button>
         <button
-          class="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--border)]"
+          class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--border)]"
           @click="handleLogout"
         >
-          <span>🚪</span>
+          <span class="shrink-0 text-xs font-semibold">出</span>
           <span v-if="!uiStore.sidebarCollapsed">退出登录</span>
         </button>
       </div>
