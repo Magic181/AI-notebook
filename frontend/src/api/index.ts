@@ -125,6 +125,7 @@ api.interceptors.response.use(
       originalRequest?.url?.includes('/auth/register/') ||
       originalRequest?.url?.includes('/auth/refresh/') ||
       originalRequest?.url?.includes('/auth/me/')
+    const isLoginEndpoint = originalRequest?.url?.includes('/auth/login/')
 
     if (status === 401 && originalRequest && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true
@@ -143,7 +144,9 @@ api.interceptors.response.use(
       }
     }
 
-    if (status === 401 && !skipAuthRedirect) {
+    if (status === 401 && isLoginEndpoint) {
+      ElMessage.error(message || '用户名或密码错误')
+    } else if (status === 401 && !skipAuthRedirect) {
       redirectToLogin()
     } else if (status !== 401) {
       ElMessage.error(message)

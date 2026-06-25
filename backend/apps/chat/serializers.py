@@ -25,4 +25,5 @@ class MessageSerializer(serializers.ModelSerializer):
 
 class SendMessageSerializer(serializers.Serializer):
     content = serializers.CharField(allow_blank=False, trim_whitespace=True)
+    web_search = serializers.BooleanField(required=False, default=False)
 

@@ -95,10 +95,23 @@
                   :key="`${msg.id}-${idx}`"
                   class="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3 text-xs text-[var(--text-secondary)]"
                 >
-                  <p class="font-medium text-[var(--text)]">
-                    {{ c.document_name }} · chunk #{{ c.position }}
-                  </p>
-                  <p class="mt-1 line-clamp-3">{{ c.chunk_text }}</p>
+                  <template v-if="c.source_type === 'web'">
+                    <a
+                      :href="c.url"
+                      target="_blank"
+                      rel="noreferrer"
+                      class="font-medium text-[var(--primary)] hover:underline"
+                    >
+                      {{ c.title }} · 网页 #{{ c.position }}
+                    </a>
+                    <p class="mt-1 line-clamp-3">{{ c.content }}</p>
+                  </template>
+                  <template v-else>
+                    <p class="font-medium text-[var(--text)]">
+                      {{ c.document_name }} · chunk #{{ c.position }}
+                    </p>
+                    <p class="mt-1 line-clamp-3">{{ c.chunk_text }}</p>
+                  </template>
                 </div>
               </div>
             </div>
@@ -109,6 +122,14 @@
       </div>
 
       <div class="shrink-0 border-t border-[var(--border)] p-4">
+        <label class="mb-3 flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+          <input
+            v-model="webSearch"
+            type="checkbox"
+            class="h-4 w-4 accent-[var(--primary)]"
+          />
+          <span>联网搜索</span>
+        </label>
         <form class="flex gap-3" @submit.prevent="sendMessage">
           <input
             v-model="input"
@@ -141,6 +162,7 @@ const conversations = ref<Conversation[]>([])
 const activeConversationId = ref<number | null>(null)
 const messages = ref<Message[]>([])
 const input = ref('')
+const webSearch = ref(false)
 
 const loadingMessages = ref(false)
 const creatingConversation = ref(false)
@@ -199,7 +221,11 @@ async function sendMessage() {
   input.value = ''
   sending.value = true
   try {
-    const { data } = await chatApi.sendMessage(activeConversationId.value, content)
+    const { data } = await chatApi.sendMessage(
+      activeConversationId.value,
+      content,
+      webSearch.value,
+    )
     messages.value = [...messages.value, data.user_message, data.assistant_message]
   } catch {
     input.value = content

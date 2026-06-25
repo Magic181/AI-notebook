@@ -150,7 +150,7 @@ SIMPLE_JWT = {
 
 # DeepSeek (OpenAI compatible)
 DEEPSEEK_BASE_URL = os.getenv('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1')
-DEEPSEEK_MODEL = os.getenv('DEEPSEEK_MODEL', 'deepseek-chat')
+DEEPSEEK_MODEL = os.getenv('DEEPSEEK_MODEL', 'deepseek-v4-flash')
 
 RAG_TOP_K = int(os.getenv('RAG_TOP_K', '5'))
 RAG_MAX_CONTEXT_CHARS = int(os.getenv('RAG_MAX_CONTEXT_CHARS', '8000'))

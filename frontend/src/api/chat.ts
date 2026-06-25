@@ -8,13 +8,24 @@ export interface Conversation {
   updated_at: string
 }
 
-export interface Citation {
+export interface DocumentCitation {
+  source_type?: 'document'
   document_id: number
   document_name: string
   chunk_id: number
   chunk_text: string
   position: number
 }
+
+export interface WebCitation {
+  source_type: 'web'
+  title: string
+  url: string
+  content: string
+  position: number
+}
+
+export type Citation = DocumentCitation | WebCitation
 
 export interface Message {
   id: number
@@ -32,10 +43,13 @@ export const chatApi = {
     api.post<Conversation>(`/notebooks/${notebookId}/conversations/`, { title }),
   listMessages: (conversationId: number) =>
     api.get<Message[]>(`/conversations/${conversationId}/messages/`),
-  sendMessage: (conversationId: number, content: string) =>
+  sendMessage: (conversationId: number, content: string, webSearch = false) =>
     api.post<{
       user_message: Message
       assistant_message: Message
-    }>(`/conversations/${conversationId}/messages/send/`, { content }),
+    }>(`/conversations/${conversationId}/messages/send/`, {
+      content,
+      web_search: webSearch,
+    }),
 }
 

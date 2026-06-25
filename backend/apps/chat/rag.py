@@ -8,6 +8,8 @@ from django.db.models import Q
 
 from apps.documents.models import DocumentChunk, DocumentStatus
 
+from .web_search import WebResult
+
 
 @dataclass(frozen=True)
 class Citation:
@@ -63,7 +65,12 @@ def retrieve_citations(notebook_id: int, query: str, top_k: int = 5) -> list[Cit
     return citations
 
 
-def build_prompt(query: str, citations: list[Citation], max_context_chars: int = 8000) -> list[dict[str, Any]]:
+def build_prompt(
+    query: str,
+    citations: list[Citation],
+    max_context_chars: int = 8000,
+    web_results: list[WebResult] | None = None,
+) -> list[dict[str, Any]]:
     context_blocks: list[str] = []
     remaining = max_context_chars
     for idx, c in enumerate(citations, start=1):
@@ -77,11 +84,30 @@ def build_prompt(query: str, citations: list[Citation], max_context_chars: int =
         if remaining <= 0:
             break
 
+    web_results = web_results or []
+    for idx, result in enumerate(web_results, start=1):
+        block = (
+            f"[W{idx}] 网页：{result.title}\n"
+            f"链接：{result.url}\n"
+            f"{result.content}"
+        ).strip()
+        if len(block) > remaining:
+            block = block[:remaining]
+        if not block:
+            break
+        context_blocks.append(block)
+        remaining -= len(block) + 2
+        if remaining <= 0:
+            break
+
     system = (
-        "你是 AI Notebook 的助手。请基于提供的资料片段回答用户问题。\n"
-        "要求：\n"
-        "- 若资料不足以回答，直接说明“资料不足”，并给出你还需要的资料类型。\n"
-        "- 尽量引用资料片段编号，如 [1][2]。\n"
+        "你是 AI Notebook 的助手，可以帮助用户理解资料、整理知识和进行基础问答。\n"
+        "回答规则：\n"
+        "- 对问候、助手能力、模型身份、产品使用方式等通用问题，可以直接自然回答。\n"
+        "- 对要求总结、解释、查找或引用 Notebook 资料的问题，必须优先基于资料片段回答。\n"
+        "- 若提供了网页搜索结果，可以结合网页内容回答，并引用网页编号，如 [W1][W2]。\n"
+        "- 如果资料型问题缺少足够资料，说明“资料不足”，并给出还需要的资料类型。\n"
+        "- 使用资料片段时，尽量引用片段编号，如 [1][2]。\n"
         "- 回答要简洁、结构清晰。\n"
     )
 
