@@ -6,22 +6,22 @@
         <p class="text-sm text-[var(--text-secondary)]">管理你的 AI 知识库</p>
       </div>
       <button
-        class="rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--primary-hover)]"
+        class="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--primary-hover)]"
         @click="showCreate = true"
       >
-        + 新建笔记本
+        新建笔记本
       </button>
     </header>
 
-    <div class="flex items-center gap-3 border-b border-[var(--border)] px-6 py-3">
+    <div class="flex flex-col gap-3 border-b border-[var(--border)] px-6 py-3 sm:flex-row sm:items-center">
       <input
         v-model="search"
         type="text"
         placeholder="搜索笔记本..."
-        class="flex-1 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-4 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--primary)]"
+        class="min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-4 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--primary)]"
       />
       <button
-        class="rounded-xl px-4 py-2 text-sm transition-colors"
+        class="rounded-lg px-4 py-2 text-sm transition-colors sm:shrink-0"
         :class="
           favoriteOnly
             ? 'bg-[var(--primary)]/10 text-[var(--primary)]'
@@ -29,7 +29,7 @@
         "
         @click="toggleFavoriteFilter"
       >
-        {{ favoriteOnly ? '★ 已收藏' : '☆ 收藏' }}
+        {{ favoriteOnly ? '仅看收藏' : '收藏筛选' }}
       </button>
     </div>
 
@@ -40,16 +40,16 @@
 
       <div
         v-else-if="notebookStore.notebooks.length === 0"
-        class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--border)] py-20"
+        class="flex flex-col items-center justify-center rounded-lg border border-dashed border-[var(--border)] py-20 text-center"
       >
-        <p class="text-4xl">📓</p>
-        <p class="mt-4 text-lg font-medium text-[var(--text)]">
+        <div class="mb-4 h-10 w-10 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]" />
+        <p class="text-lg font-medium text-[var(--text)]">
           {{ emptyTitle }}
         </p>
         <p class="mt-2 text-sm text-[var(--text-secondary)]">{{ emptyHint }}</p>
         <button
           v-if="!favoriteOnly && !search"
-          class="mt-6 rounded-xl bg-[var(--primary)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--primary-hover)]"
+          class="mt-6 rounded-lg bg-[var(--primary)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--primary-hover)]"
           @click="showCreate = true"
         >
           创建笔记本
@@ -60,17 +60,21 @@
         <div
           v-for="nb in notebookStore.notebooks"
           :key="nb.id"
-          class="group relative rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 transition-all hover:border-[var(--primary)]/40 hover:shadow-md"
+          class="group relative rounded-lg border border-[var(--border)] bg-[var(--bg)] p-5 transition-all hover:border-[var(--primary)]/40 hover:shadow-md"
         >
           <button
-            class="absolute right-4 top-4 text-lg transition-transform hover:scale-110"
-            :class="nb.is_favorite ? 'text-yellow-500' : 'text-[var(--text-secondary)]'"
+            class="absolute right-4 top-4 rounded-full px-2 py-1 text-xs transition-colors"
+            :class="
+              nb.is_favorite
+                ? 'bg-yellow-500/10 text-yellow-600'
+                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'
+            "
             @click="handleToggleFavorite(nb.id)"
           >
-            {{ nb.is_favorite ? '★' : '☆' }}
+            {{ nb.is_favorite ? '已收藏' : '收藏' }}
           </button>
 
-          <router-link :to="`/notebook/${nb.id}`" class="block pr-8">
+          <router-link :to="`/notebook/${nb.id}`" class="block pr-20">
             <h3 class="font-medium text-[var(--text)] group-hover:text-[var(--primary)]">
               {{ nb.name }}
             </h3>
@@ -79,6 +83,9 @@
             </p>
             <p class="mt-4 text-xs text-[var(--text-secondary)]">
               更新于 {{ formatDate(nb.updated_at) }}
+            </p>
+            <p class="mt-2 text-xs text-[var(--text-secondary)]">
+              {{ nb.document_count || 0 }} 个文档
             </p>
           </router-link>
         </div>
@@ -91,7 +98,7 @@
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
     @click.self="showCreate = false"
   >
-    <div class="w-full max-w-md rounded-2xl bg-[var(--bg)] p-6 shadow-xl">
+    <div class="w-full max-w-md rounded-lg bg-[var(--bg)] p-6 shadow-xl">
       <h2 class="text-lg font-semibold text-[var(--text)]">新建笔记本</h2>
       <form class="mt-4 space-y-4" @submit.prevent="handleCreate">
         <input
@@ -99,18 +106,18 @@
           type="text"
           placeholder="笔记本名称"
           required
-          class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-[var(--text)] outline-none focus:border-[var(--primary)]"
+          class="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-[var(--text)] outline-none focus:border-[var(--primary)]"
         />
         <textarea
           v-model="form.description"
           placeholder="描述（可选）"
           rows="3"
-          class="w-full resize-none rounded-xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-[var(--text)] outline-none focus:border-[var(--primary)]"
+          class="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-[var(--text)] outline-none focus:border-[var(--primary)]"
         />
         <div class="flex justify-end gap-3">
           <button
             type="button"
-            class="rounded-xl px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
+            class="rounded-lg px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
             @click="showCreate = false"
           >
             取消
@@ -118,7 +125,7 @@
           <button
             type="submit"
             :disabled="creating"
-            class="rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--primary-hover)] disabled:opacity-50"
+            class="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--primary-hover)] disabled:opacity-50"
           >
             {{ creating ? '创建中...' : '创建' }}
           </button>
@@ -129,7 +136,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useNotebookStore } from '@/stores/notebook'
@@ -204,4 +211,7 @@ watch(search, () => {
 })
 
 onMounted(loadNotebooks)
+onUnmounted(() => {
+  if (searchTimer) clearTimeout(searchTimer)
+})
 </script>
