@@ -254,6 +254,7 @@ def _source_label(source_type: str) -> str:
         'table': '表格',
         'code': '代码块',
         'image_ocr': '图片 OCR',
+        'image_caption': '图片描述',
         'mixed': '混合文本',
         'text': '文本',
     }

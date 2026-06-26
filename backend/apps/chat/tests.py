@@ -391,6 +391,25 @@ class BuildPromptTests(TestCase):
         self.assertIn('图片 OCR 1 个', messages[1]['content'])
         self.assertIn('chunk#4，图片 OCR', messages[1]['content'])
 
+    def test_prompt_labels_image_caption_context(self):
+        messages = build_prompt(
+            '这个流程图表达什么',
+            [
+                Citation(
+                    document_id=1,
+                    document_name='report.md',
+                    chunk_id=21,
+                    chunk_text='[图片视觉描述 #1]\n视觉描述：展示上传、解析、检索三个阶段。',
+                    position=5,
+                    source_type='image_caption',
+                    metadata={'source_type': 'image_caption', 'asset_position': 0},
+                )
+            ],
+        )
+
+        self.assertIn('图片描述 1 个', messages[1]['content'])
+        self.assertIn('chunk#5，图片描述', messages[1]['content'])
+
     def test_prompt_includes_recent_conversation_history(self):
         messages = build_prompt(
             '现在呢',

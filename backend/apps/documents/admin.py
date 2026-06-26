@@ -25,7 +25,8 @@ class DocumentAssetAdmin(admin.ModelAdmin):
         'position',
         'original_name',
         'ocr_status',
+        'vision_status',
         'file_path',
     )
-    list_filter = ('asset_type', 'ocr_status')
-    search_fields = ('original_name', 'nearby_text', 'ocr_text')
+    list_filter = ('asset_type', 'ocr_status', 'vision_status')
+    search_fields = ('original_name', 'nearby_text', 'ocr_text', 'vision_text')

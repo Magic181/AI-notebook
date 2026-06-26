@@ -67,6 +67,7 @@ function documentSourceLabel(sourceType?: string) {
     table: '表格',
     code: '代码',
     image_ocr: '图片 OCR',
+    image_caption: '图片描述',
     mixed: '混合',
     text: '文本',
   }

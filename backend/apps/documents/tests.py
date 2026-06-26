@@ -404,6 +404,57 @@ class ParseDocumentTaskTests(TransactionTestCase):
         self.assertEqual(ocr_chunk.metadata['ocr_engine'], 'test-ocr')
         self.assertEqual(document.chunk_count, document.chunks.count())
 
+    @patch('apps.documents.vision.run_asset_vision')
+    @patch('apps.documents.ocr.run_asset_ocr')
+    def test_parse_task_creates_image_caption_chunks_when_vision_succeeds(
+        self,
+        run_asset_ocr,
+        run_asset_vision,
+    ):
+        run_asset_ocr.return_value = {
+            'status': DocumentAsset.OCRStatus.SKIPPED,
+            'text': '',
+            'error': 'No OCR text extracted',
+        }
+        run_asset_vision.return_value = {
+            'status': DocumentAsset.VisionStatus.SUCCESS,
+            'text': '这是一张系统流程图，展示上传、解析、检索三个阶段。',
+            'error': '',
+            'model': 'test-vision',
+        }
+        relative_dir = Path('files') / str(self.user.id) / str(self.notebook.id)
+        file_path = Path(self.temp_dir.name) / relative_dir / 'report.md'
+        image_path = Path(self.temp_dir.name) / relative_dir / 'diagram.png'
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text('# 报告\n\n![流程图](diagram.png)', encoding='utf-8')
+        image_path.write_bytes(TINY_PNG)
+
+        document = Document.objects.create(
+            notebook=self.notebook,
+            name='report.md',
+            file_path=str(relative_dir / 'report.md'),
+            file_size=file_path.stat().st_size,
+            file_type='md',
+            status=DocumentStatus.UPLOADING,
+        )
+
+        parse_document_task(document.id)
+
+        document.refresh_from_db()
+        asset = DocumentAsset.objects.get(document=document)
+        self.assertEqual(asset.vision_status, DocumentAsset.VisionStatus.SUCCESS)
+        self.assertIn('系统流程图', asset.vision_text)
+
+        caption_chunk = DocumentChunk.objects.get(
+            document=document,
+            metadata__source_type='image_caption',
+        )
+        self.assertIn('视觉描述', caption_chunk.content)
+        self.assertIn('上传、解析、检索', caption_chunk.content)
+        self.assertEqual(caption_chunk.metadata['asset_id'], asset.id)
+        self.assertEqual(caption_chunk.metadata['vision_model'], 'test-vision')
+        self.assertEqual(document.chunk_count, document.chunks.count())
+
     def test_document_serializer_includes_asset_count(self):
         document = Document.objects.create(
             notebook=self.notebook,
@@ -419,9 +470,12 @@ class ParseDocumentTaskTests(TransactionTestCase):
             position=0,
             ocr_status=DocumentAsset.OCRStatus.SUCCESS,
             ocr_text='识别文字',
+            vision_status=DocumentAsset.VisionStatus.SUCCESS,
+            vision_text='图片描述',
         )
 
         data = DocumentSerializer(document).data
 
         self.assertEqual(data['asset_count'], 1)
         self.assertEqual(data['ocr_count'], 1)
+        self.assertEqual(data['vision_count'], 1)

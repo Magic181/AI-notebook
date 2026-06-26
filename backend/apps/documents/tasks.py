@@ -7,6 +7,7 @@ from .models import Document, DocumentChunk, DocumentStatus
 from .ocr import build_ocr_blocks
 from .parsers import ParseError, parse_file_blocks
 from .storage import get_absolute_path
+from .vision import build_vision_blocks
 
 
 @shared_task
@@ -43,6 +44,7 @@ def parse_document_task(document_id: int) -> None:
             ])
             replace_document_assets(document, file_path, blocks)
             ocr_chunks = chunk_blocks(build_ocr_blocks(document))
+            vision_chunks = chunk_blocks(build_vision_blocks(document))
             if ocr_chunks:
                 start_position = len(chunks)
                 DocumentChunk.objects.bulk_create([
@@ -54,7 +56,18 @@ def parse_document_task(document_id: int) -> None:
                     )
                     for index, chunk in enumerate(ocr_chunks)
                 ])
-            document.chunk_count = len(chunks) + len(ocr_chunks)
+            if vision_chunks:
+                start_position = len(chunks) + len(ocr_chunks)
+                DocumentChunk.objects.bulk_create([
+                    DocumentChunk(
+                        document=document,
+                        content=chunk['content'],
+                        metadata=chunk['metadata'],
+                        position=start_position + index,
+                    )
+                    for index, chunk in enumerate(vision_chunks)
+                ])
+            document.chunk_count = len(chunks) + len(ocr_chunks) + len(vision_chunks)
             document.status = DocumentStatus.COMPLETED
             document.save(update_fields=['chunk_count', 'status', 'updated_at'])
     except Exception as exc:

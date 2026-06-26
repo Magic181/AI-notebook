@@ -71,6 +71,12 @@ class DocumentAsset(models.Model):
         SKIPPED = 'skipped', '跳过'
         FAILED = 'failed', '失败'
 
+    class VisionStatus(models.TextChoices):
+        PENDING = 'pending', '待处理'
+        SUCCESS = 'success', '成功'
+        SKIPPED = 'skipped', '跳过'
+        FAILED = 'failed', '失败'
+
     document = models.ForeignKey(
         Document,
         on_delete=models.CASCADE,
@@ -92,6 +98,13 @@ class DocumentAsset(models.Model):
     )
     ocr_text = models.TextField(blank=True, default='')
     ocr_error = models.TextField(blank=True, default='')
+    vision_status = models.CharField(
+        max_length=20,
+        choices=VisionStatus.choices,
+        default=VisionStatus.PENDING,
+    )
+    vision_text = models.TextField(blank=True, default='')
+    vision_error = models.TextField(blank=True, default='')
     metadata = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
