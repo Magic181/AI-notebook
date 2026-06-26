@@ -1,3 +1,4 @@
+import base64
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -10,10 +11,17 @@ from rest_framework.test import APIClient
 
 from apps.notebooks.models import Notebook
 
+from .assets import extract_assets
 from .chunking import chunk_blocks
-from .models import Document, DocumentChunk, DocumentStatus
+from .models import Document, DocumentAsset, DocumentChunk, DocumentStatus
 from .parsers import _docx_heading_level, parse_file, parse_file_blocks
+from .serializers import DocumentSerializer
 from .tasks import parse_document_task
+
+
+TINY_PNG = base64.b64decode(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='
+)
 
 
 class DocumentUploadTests(TransactionTestCase):
@@ -217,6 +225,39 @@ class DocxParsingTests(TestCase):
         self.assertEqual(_docx_heading_level('标题1'), 1)
         self.assertEqual(_docx_heading_level('标题 2'), 2)
 
+    def test_markdown_asset_extraction_registers_image_reference(self):
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / 'report.md'
+            image_path = Path(temp_dir) / 'diagram.png'
+            image_path.write_bytes(TINY_PNG)
+            path.write_text('前文说明\n\n![流程图](diagram.png)\n\n后文说明', encoding='utf-8')
+
+            assets = extract_assets(path, 'md', [])
+
+        self.assertEqual(len(assets), 1)
+        self.assertEqual(assets[0].original_name, 'diagram.png')
+        self.assertIn('前文说明', assets[0].nearby_text)
+        self.assertEqual(assets[0].metadata['alt_text'], '流程图')
+        self.assertTrue(assets[0].metadata['is_local'])
+
+    def test_docx_asset_extraction_reads_embedded_images(self):
+        with TemporaryDirectory() as temp_dir:
+            image_path = Path(temp_dir) / 'pixel.png'
+            image_path.write_bytes(TINY_PNG)
+            docx_path = Path(temp_dir) / 'image.docx'
+            doc = DocxDocument()
+            doc.add_paragraph('图片说明：系统流程图。')
+            doc.add_picture(str(image_path))
+            doc.save(docx_path)
+
+            blocks = parse_file_blocks(docx_path, 'docx')
+            assets = extract_assets(docx_path, 'docx', blocks)
+
+        self.assertEqual(len(assets), 1)
+        self.assertEqual(assets[0].metadata['source'], 'docx')
+        self.assertIn('图片说明', assets[0].nearby_text)
+        self.assertTrue(assets[0].data)
+
     @patch('apps.documents.parsers.PdfReader')
     def test_pdf_parser_uses_page_blocks_with_unified_metadata(self, pdf_reader):
         class FakePage:
@@ -293,3 +334,50 @@ class ParseDocumentTaskTests(TransactionTestCase):
         self.assertIn('模块 | 状态', table_chunk.content)
         self.assertEqual(table_chunk.metadata['table_index'], 1)
         self.assertEqual(table_chunk.metadata['file_type'], 'docx')
+
+    def test_parse_task_stores_markdown_image_assets(self):
+        relative_dir = Path('files') / str(self.user.id) / str(self.notebook.id)
+        file_path = Path(self.temp_dir.name) / relative_dir / 'report.md'
+        image_path = Path(self.temp_dir.name) / relative_dir / 'diagram.png'
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text('# 报告\n\n![流程图](diagram.png)', encoding='utf-8')
+        image_path.write_bytes(TINY_PNG)
+
+        document = Document.objects.create(
+            notebook=self.notebook,
+            name='report.md',
+            file_path=str(relative_dir / 'report.md'),
+            file_size=file_path.stat().st_size,
+            file_type='md',
+            status=DocumentStatus.UPLOADING,
+        )
+
+        parse_document_task(document.id)
+
+        document.refresh_from_db()
+        self.assertEqual(document.status, DocumentStatus.COMPLETED)
+        asset = DocumentAsset.objects.get(document=document)
+        self.assertEqual(asset.asset_type, DocumentAsset.AssetType.IMAGE)
+        self.assertEqual(asset.original_name, 'diagram.png')
+        self.assertTrue(asset.file_path)
+        self.assertTrue((Path(self.temp_dir.name) / asset.file_path).exists())
+        self.assertEqual(asset.metadata['alt_text'], '流程图')
+
+    def test_document_serializer_includes_asset_count(self):
+        document = Document.objects.create(
+            notebook=self.notebook,
+            name='with-image.md',
+            file_path='files/with-image.md',
+            file_type='md',
+            status=DocumentStatus.COMPLETED,
+        )
+        DocumentAsset.objects.create(
+            document=document,
+            asset_type=DocumentAsset.AssetType.IMAGE,
+            original_name='diagram.png',
+            position=0,
+        )
+
+        data = DocumentSerializer(document).data
+
+        self.assertEqual(data['asset_count'], 1)

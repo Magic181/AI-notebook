@@ -1,6 +1,7 @@
 from celery import shared_task
 from django.db import transaction
 
+from .assets import clear_document_assets, replace_document_assets
 from .chunking import chunk_blocks
 from .models import Document, DocumentChunk, DocumentStatus
 from .parsers import ParseError, parse_file_blocks
@@ -39,10 +40,12 @@ def parse_document_task(document_id: int) -> None:
                 )
                 for chunk in chunks
             ])
+            replace_document_assets(document, file_path, blocks)
             document.chunk_count = len(chunks)
             document.status = DocumentStatus.COMPLETED
             document.save(update_fields=['chunk_count', 'status', 'updated_at'])
     except Exception as exc:
+        clear_document_assets(document)
         document.status = DocumentStatus.FAILED
         document.error_message = str(exc)
         document.chunk_count = 0

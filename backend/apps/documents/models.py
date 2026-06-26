@@ -59,3 +59,34 @@ class DocumentChunk(models.Model):
 
     def __str__(self):
         return f'{self.document_id}#{self.position}'
+
+
+class DocumentAsset(models.Model):
+    class AssetType(models.TextChoices):
+        IMAGE = 'image', '图片'
+
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name='assets',
+    )
+    asset_type = models.CharField(
+        max_length=20,
+        choices=AssetType.choices,
+        default=AssetType.IMAGE,
+    )
+    file_path = models.CharField(max_length=500, blank=True, default='')
+    original_name = models.CharField(max_length=255, blank=True, default='')
+    position = models.IntegerField(default=0)
+    nearby_text = models.TextField(blank=True, default='')
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['position']
+        indexes = [
+            models.Index(fields=['document', 'asset_type', 'position']),
+        ]
+
+    def __str__(self):
+        return f'{self.document_id}:{self.asset_type}#{self.position}'
