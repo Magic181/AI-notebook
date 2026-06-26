@@ -372,6 +372,25 @@ class BuildPromptTests(TestCase):
         self.assertIn('chunk#0，标题', messages[1]['content'])
         self.assertIn('chunk#1，代码块', messages[1]['content'])
 
+    def test_prompt_labels_image_ocr_context(self):
+        messages = build_prompt(
+            '图里写了什么',
+            [
+                Citation(
+                    document_id=1,
+                    document_name='report.md',
+                    chunk_id=20,
+                    chunk_text='[图片 OCR #1]\nOCR 文本：流程图包含上传、解析、检索。',
+                    position=4,
+                    source_type='image_ocr',
+                    metadata={'source_type': 'image_ocr', 'asset_position': 0},
+                )
+            ],
+        )
+
+        self.assertIn('图片 OCR 1 个', messages[1]['content'])
+        self.assertIn('chunk#4，图片 OCR', messages[1]['content'])
+
     def test_prompt_includes_recent_conversation_history(self):
         messages = build_prompt(
             '现在呢',

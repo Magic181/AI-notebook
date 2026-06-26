@@ -15,7 +15,7 @@ export interface DocumentCitation {
   chunk_id: number
   chunk_text: string
   position: number
-  document_source_type?: 'paragraph' | 'page' | 'table' | 'mixed' | 'text' | string
+  document_source_type?: 'paragraph' | 'page' | 'table' | 'code' | 'image_ocr' | 'mixed' | 'text' | string
   metadata?: Record<string, unknown>
 }
 

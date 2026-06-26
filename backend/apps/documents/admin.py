@@ -18,6 +18,14 @@ class DocumentChunkAdmin(admin.ModelAdmin):
 
 @admin.register(DocumentAsset)
 class DocumentAssetAdmin(admin.ModelAdmin):
-    list_display = ('id', 'document', 'asset_type', 'position', 'original_name', 'file_path')
-    list_filter = ('asset_type',)
-    search_fields = ('original_name', 'nearby_text')
+    list_display = (
+        'id',
+        'document',
+        'asset_type',
+        'position',
+        'original_name',
+        'ocr_status',
+        'file_path',
+    )
+    list_filter = ('asset_type', 'ocr_status')
+    search_fields = ('original_name', 'nearby_text', 'ocr_text')

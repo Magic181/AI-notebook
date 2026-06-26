@@ -24,6 +24,7 @@
             {{ formatSize(doc.file_size) }}
             <span v-if="doc.chunk_count > 0"> · {{ doc.chunk_count }} 个片段</span>
             <span v-if="doc.asset_count > 0"> · {{ doc.asset_count }} 张图片</span>
+            <span v-if="doc.ocr_count > 0"> · {{ doc.ocr_count }} 张已 OCR</span>
           </p>
           <p v-if="doc.status === 'failed' && doc.error_message" class="mt-1 break-words text-xs text-red-500">
             {{ doc.error_message }}

@@ -11,6 +11,7 @@ export interface Document {
   status: DocumentStatus
   chunk_count: number
   asset_count: number
+  ocr_count: number
   error_message?: string
   created_at: string
   updated_at: string

@@ -65,6 +65,12 @@ class DocumentAsset(models.Model):
     class AssetType(models.TextChoices):
         IMAGE = 'image', '图片'
 
+    class OCRStatus(models.TextChoices):
+        PENDING = 'pending', '待处理'
+        SUCCESS = 'success', '成功'
+        SKIPPED = 'skipped', '跳过'
+        FAILED = 'failed', '失败'
+
     document = models.ForeignKey(
         Document,
         on_delete=models.CASCADE,
@@ -79,6 +85,13 @@ class DocumentAsset(models.Model):
     original_name = models.CharField(max_length=255, blank=True, default='')
     position = models.IntegerField(default=0)
     nearby_text = models.TextField(blank=True, default='')
+    ocr_status = models.CharField(
+        max_length=20,
+        choices=OCRStatus.choices,
+        default=OCRStatus.PENDING,
+    )
+    ocr_text = models.TextField(blank=True, default='')
+    ocr_error = models.TextField(blank=True, default='')
     metadata = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

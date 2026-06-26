@@ -66,6 +66,7 @@ function documentSourceLabel(sourceType?: string) {
     page: '页面',
     table: '表格',
     code: '代码',
+    image_ocr: '图片 OCR',
     mixed: '混合',
     text: '文本',
   }
@@ -78,11 +79,13 @@ function documentSourceDetail(citation: DocumentCitation) {
   const page = numberValue(metadata.page)
   const headingLevel = numberValue(metadata.heading_level)
   const tableIndex = numberValue(metadata.table_index)
+  const assetPosition = numberValue(metadata.asset_position)
   const language = stringValue(metadata.language)
 
   if (page) parts.push(`第 ${page} 页`)
   if (headingLevel) parts.push(`${headingLevel} 级标题`)
   if (tableIndex) parts.push(`表格 ${tableIndex}`)
+  if (assetPosition !== null) parts.push(`图片 ${assetPosition + 1}`)
   if (language) parts.push(language)
   return parts.join(' · ')
 }

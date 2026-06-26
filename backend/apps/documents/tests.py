@@ -363,6 +363,47 @@ class ParseDocumentTaskTests(TransactionTestCase):
         self.assertTrue((Path(self.temp_dir.name) / asset.file_path).exists())
         self.assertEqual(asset.metadata['alt_text'], '流程图')
 
+    @patch('apps.documents.ocr.run_asset_ocr')
+    def test_parse_task_creates_image_ocr_chunks_when_ocr_succeeds(self, run_asset_ocr):
+        run_asset_ocr.return_value = {
+            'status': DocumentAsset.OCRStatus.SUCCESS,
+            'text': '流程图包含上传、解析、检索三个步骤。',
+            'error': '',
+            'engine': 'test-ocr',
+        }
+        relative_dir = Path('files') / str(self.user.id) / str(self.notebook.id)
+        file_path = Path(self.temp_dir.name) / relative_dir / 'report.md'
+        image_path = Path(self.temp_dir.name) / relative_dir / 'diagram.png'
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text('# 报告\n\n![流程图](diagram.png)', encoding='utf-8')
+        image_path.write_bytes(TINY_PNG)
+
+        document = Document.objects.create(
+            notebook=self.notebook,
+            name='report.md',
+            file_path=str(relative_dir / 'report.md'),
+            file_size=file_path.stat().st_size,
+            file_type='md',
+            status=DocumentStatus.UPLOADING,
+        )
+
+        parse_document_task(document.id)
+
+        document.refresh_from_db()
+        asset = DocumentAsset.objects.get(document=document)
+        self.assertEqual(asset.ocr_status, DocumentAsset.OCRStatus.SUCCESS)
+        self.assertIn('上传、解析、检索', asset.ocr_text)
+
+        ocr_chunk = DocumentChunk.objects.get(
+            document=document,
+            metadata__source_type='image_ocr',
+        )
+        self.assertIn('OCR 文本', ocr_chunk.content)
+        self.assertIn('上传、解析、检索', ocr_chunk.content)
+        self.assertEqual(ocr_chunk.metadata['asset_id'], asset.id)
+        self.assertEqual(ocr_chunk.metadata['ocr_engine'], 'test-ocr')
+        self.assertEqual(document.chunk_count, document.chunks.count())
+
     def test_document_serializer_includes_asset_count(self):
         document = Document.objects.create(
             notebook=self.notebook,
@@ -376,8 +417,11 @@ class ParseDocumentTaskTests(TransactionTestCase):
             asset_type=DocumentAsset.AssetType.IMAGE,
             original_name='diagram.png',
             position=0,
+            ocr_status=DocumentAsset.OCRStatus.SUCCESS,
+            ocr_text='识别文字',
         )
 
         data = DocumentSerializer(document).data
 
         self.assertEqual(data['asset_count'], 1)
+        self.assertEqual(data['ocr_count'], 1)

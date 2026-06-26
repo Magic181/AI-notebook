@@ -4,6 +4,7 @@ from django.db import transaction
 from .assets import clear_document_assets, replace_document_assets
 from .chunking import chunk_blocks
 from .models import Document, DocumentChunk, DocumentStatus
+from .ocr import build_ocr_blocks
 from .parsers import ParseError, parse_file_blocks
 from .storage import get_absolute_path
 
@@ -41,7 +42,19 @@ def parse_document_task(document_id: int) -> None:
                 for chunk in chunks
             ])
             replace_document_assets(document, file_path, blocks)
-            document.chunk_count = len(chunks)
+            ocr_chunks = chunk_blocks(build_ocr_blocks(document))
+            if ocr_chunks:
+                start_position = len(chunks)
+                DocumentChunk.objects.bulk_create([
+                    DocumentChunk(
+                        document=document,
+                        content=chunk['content'],
+                        metadata=chunk['metadata'],
+                        position=start_position + index,
+                    )
+                    for index, chunk in enumerate(ocr_chunks)
+                ])
+            document.chunk_count = len(chunks) + len(ocr_chunks)
             document.status = DocumentStatus.COMPLETED
             document.save(update_fields=['chunk_count', 'status', 'updated_at'])
     except Exception as exc:

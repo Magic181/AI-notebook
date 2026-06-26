@@ -253,6 +253,7 @@ def _source_label(source_type: str) -> str:
         'page': '页面文本',
         'table': '表格',
         'code': '代码块',
+        'image_ocr': '图片 OCR',
         'mixed': '混合文本',
         'text': '文本',
     }
