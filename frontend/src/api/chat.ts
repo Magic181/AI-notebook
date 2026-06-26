@@ -15,6 +15,8 @@ export interface DocumentCitation {
   chunk_id: number
   chunk_text: string
   position: number
+  document_source_type?: 'paragraph' | 'page' | 'table' | 'mixed' | 'text' | string
+  metadata?: Record<string, unknown>
 }
 
 export interface WebCitation {
@@ -59,4 +61,3 @@ export const chatApi = {
       search_mode: searchMode,
     }),
 }
-

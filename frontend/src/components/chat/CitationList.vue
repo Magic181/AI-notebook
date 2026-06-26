@@ -27,8 +27,8 @@
           <p class="min-w-0 flex-1 truncate font-medium text-[var(--text)]">
             {{ citation.document_name }}
           </p>
-          <span class="shrink-0 text-[var(--text-secondary)]">
-            chunk #{{ citation.position }}
+          <span class="shrink-0 rounded bg-[var(--bg-secondary)] px-2 py-0.5 text-[var(--text-secondary)]">
+            {{ documentSourceLabel(citation.document_source_type) }} #{{ citation.position }}
           </span>
         </div>
         <p class="mt-2 line-clamp-3 break-words">{{ citation.chunk_text }}</p>
@@ -51,5 +51,16 @@ function isWebCitation(citation: Citation): citation is WebCitation {
 function citationKey(citation: Citation, index: number) {
   if (isWebCitation(citation)) return `web-${citation.url}-${citation.position}-${index}`
   return `doc-${citation.document_id}-${citation.chunk_id}-${citation.position}-${index}`
+}
+
+function documentSourceLabel(sourceType?: string) {
+  const labels: Record<string, string> = {
+    paragraph: '正文',
+    page: '页面',
+    table: '表格',
+    mixed: '混合',
+    text: '文本',
+  }
+  return labels[sourceType || ''] || '文本'
 }
 </script>

@@ -84,6 +84,8 @@ def build_citation_payload(
             "chunk_id": citation.chunk_id,
             "chunk_text": citation.chunk_text,
             "position": citation.position,
+            "document_source_type": citation.source_type,
+            "metadata": citation.metadata,
         }
         for citation in citations
     ] + [

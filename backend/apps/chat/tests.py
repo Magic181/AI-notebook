@@ -10,11 +10,12 @@ from apps.documents.models import Document, DocumentChunk, DocumentStatus
 from apps.notebooks.models import Notebook
 
 from .models import Conversation, Message, MessageRole
-from .rag import DeepSeekAuthError, build_prompt, call_deepseek_chat, retrieve_citations
+from .rag import Citation, DeepSeekAuthError, build_prompt, call_deepseek_chat, retrieve_citations
 from .services import (
     AI_FAILURE_MESSAGE,
     WEB_ONLY_SEARCH_DEGRADED_MESSAGE,
     WEB_SEARCH_DEGRADED_MESSAGE,
+    build_citation_payload,
 )
 from .web_search import WebResult, WebSearchError, search_web
 
@@ -299,7 +300,7 @@ class BuildPromptTests(TestCase):
         system = messages[0]['content']
 
         self.assertIn('通用问题，可以直接自然回答', system)
-        self.assertIn('资料型问题缺少足够资料', system)
+        self.assertIn('未检索到可用资料片段', messages[1]['content'])
         self.assertIn('资料片段：无', messages[1]['content'])
 
     def test_prompt_includes_web_results_with_web_source_numbers(self):
@@ -316,9 +317,30 @@ class BuildPromptTests(TestCase):
             ],
         )
 
-        self.assertIn('网页搜索结果', messages[0]['content'])
+        self.assertIn('网页结果', messages[1]['content'])
         self.assertIn('[W1] 网页：Web title', messages[1]['content'])
         self.assertIn('https://example.com', messages[1]['content'])
+
+    def test_prompt_marks_available_document_context_and_limits_image_claims(self):
+        messages = build_prompt(
+            '你读不了里面的图片吗',
+            [
+                Citation(
+                    document_id=1,
+                    document_name='report.docx',
+                    chunk_id=10,
+                    chunk_text='图 5-1 所示为系统流程图，步骤包括登录、上传、解析。',
+                    position=3,
+                    source_type='paragraph',
+                    metadata={'source_type': 'paragraph'},
+                )
+            ],
+        )
+
+        self.assertIn('禁止说“没有读取到上传内容”', messages[0]['content'])
+        self.assertIn('不能看见图片像素本身', messages[0]['content'])
+        self.assertIn('资料状态：已检索到 Notebook 片段 1 个（正文段落 1 个）', messages[1]['content'])
+        self.assertIn('chunk#3，正文段落', messages[1]['content'])
 
     def test_prompt_includes_recent_conversation_history(self):
         messages = build_prompt(
@@ -334,6 +356,28 @@ class BuildPromptTests(TestCase):
         self.assertEqual(messages[1]['content'], '我上传的文件你能读到吗')
         self.assertEqual(messages[2]['role'], 'assistant')
         self.assertIn('用户问题：现在呢', messages[3]['content'])
+
+
+class CitationPayloadTests(TestCase):
+    def test_document_citation_payload_includes_source_metadata(self):
+        payload = build_citation_payload(
+            [
+                Citation(
+                    document_id=1,
+                    document_name='report.docx',
+                    chunk_id=2,
+                    chunk_text='行 1: 模块 | 状态',
+                    position=4,
+                    source_type='table',
+                    metadata={'source_type': 'table', 'table_index': 1},
+                )
+            ],
+            [],
+        )
+
+        self.assertEqual(payload[0]['source_type'], 'document')
+        self.assertEqual(payload[0]['document_source_type'], 'table')
+        self.assertEqual(payload[0]['metadata']['table_index'], 1)
 
 
 class RetrieveCitationTests(TestCase):
@@ -357,11 +401,13 @@ class RetrieveCitationTests(TestCase):
             document=self.document,
             content='项目背景和系统设计内容，包含需求分析、数据库设计和测试结果。',
             position=0,
+            metadata={'source_type': 'paragraph'},
         )
         DocumentChunk.objects.create(
             document=self.document,
             content='本项目属于软件工程课程实践，主要实现笔记本资料管理和 AI 对话。',
             position=1,
+            metadata={'source_type': 'paragraph'},
         )
 
     def test_chinese_sentence_query_matches_terms_inside_question(self):

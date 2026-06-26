@@ -20,6 +20,8 @@ class Citation:
     chunk_id: int
     chunk_text: str
     position: int
+    source_type: str
+    metadata: dict[str, Any]
 
 
 class DeepSeekError(RuntimeError):
@@ -166,6 +168,8 @@ def retrieve_citations(notebook_id: int, query: str, top_k: int = 5) -> list[Cit
                 chunk_id=c.id,
                 chunk_text=c.content[:500],
                 position=c.position,
+                source_type=(c.metadata or {}).get('source_type', 'text'),
+                metadata=c.metadata or {},
             )
         )
     return citations
@@ -181,7 +185,11 @@ def build_prompt(
     context_blocks: list[str] = []
     remaining = max_context_chars
     for idx, c in enumerate(citations, start=1):
-        block = f"[{idx}] 文档：{c.document_name}（chunk#{c.position}）\n{c.chunk_text}".strip()
+        source_label = _source_label(c.source_type)
+        block = (
+            f"[{idx}] 文档：{c.document_name}（chunk#{c.position}，{source_label}）\n"
+            f"{c.chunk_text}"
+        ).strip()
         if len(block) > remaining:
             block = block[:remaining]
         if not block:
@@ -208,18 +216,24 @@ def build_prompt(
             break
 
     system = (
-        "你是 AI Notebook 的助手，可以帮助用户理解资料、整理知识和进行基础问答。\n"
+        "你是 AI Notebook 的资料协作助手，语气自然、主动、专业。\n"
         "回答规则：\n"
-        "- 对问候、助手能力、模型身份、产品使用方式等通用问题，可以直接自然回答。\n"
-        "- 对要求总结、解释、查找或引用 Notebook 资料的问题，必须优先基于资料片段回答。\n"
+        "- 先直接回答用户的问题，再补充依据和限制；不要一上来要求用户重新提供资料。\n"
+        "- 只要资料片段不为空，就表示已经读取到 Notebook 的可解析内容，禁止说“没有读取到上传内容”。\n"
+        "- 对资料型问题，优先基于资料片段回答，并引用片段编号，如 [1][2]。\n"
+        "- 如果片段只覆盖部分内容，要明确说“基于当前检索到的片段”，并给出可推断结论。\n"
+        "- 如果用户问图片、流程图、截图或图表，而资料中没有图片/OCR/视觉描述，只能说明当前只能看到文档文字、表格或图片附近文字，不能看见图片像素本身；然后继续基于已读文字分析。\n"
         "- 若提供了网页搜索结果，可以结合网页内容回答，并引用网页编号，如 [W1][W2]。\n"
-        "- 如果资料型问题缺少足够资料，说明“资料不足”，并给出还需要的资料类型。\n"
-        "- 使用资料片段时，尽量引用片段编号，如 [1][2]。\n"
-        "- 回答要简洁、结构清晰。\n"
+        "- 对问候、助手能力、模型身份、产品使用方式等通用问题，可以直接自然回答。\n"
+        "- 回答要像可用的产品助手：具体、少兜圈子、少模板话。\n"
     )
 
     context = "\n\n".join(context_blocks) if context_blocks else ""
-    user = f"用户问题：{query}\n\n资料片段：\n{context}" if context else f"用户问题：{query}\n\n资料片段：无"
+    source_summary = _source_summary(citations, web_results)
+    if context:
+        user = f"用户问题：{query}\n\n资料状态：{source_summary}\n\n资料片段：\n{context}"
+    else:
+        user = f"用户问题：{query}\n\n资料状态：未检索到可用资料片段。\n\n资料片段：无"
 
     messages = [{"role": "system", "content": system}]
     for item in history or []:
@@ -230,6 +244,33 @@ def build_prompt(
         messages.append({"role": role, "content": content[:1000]})
     messages.append({"role": "user", "content": user})
     return messages
+
+
+def _source_label(source_type: str) -> str:
+    labels = {
+        'paragraph': '正文段落',
+        'page': '页面文本',
+        'table': '表格',
+        'mixed': '混合文本',
+        'text': '文本',
+    }
+    return labels.get(source_type, source_type or '文本')
+
+
+def _source_summary(citations: list[Citation], web_results: list[WebResult]) -> str:
+    parts = []
+    if citations:
+        source_counts: dict[str, int] = {}
+        for citation in citations:
+            source_counts[citation.source_type] = source_counts.get(citation.source_type, 0) + 1
+        detail = '、'.join(
+            f"{_source_label(source_type)} {count} 个"
+            for source_type, count in source_counts.items()
+        )
+        parts.append(f"已检索到 Notebook 片段 {len(citations)} 个（{detail}）")
+    if web_results:
+        parts.append(f"已检索到网页结果 {len(web_results)} 个")
+    return '；'.join(parts) if parts else '未检索到可用资料片段'
 
 
 def call_deepseek_chat(messages: list[dict[str, Any]]) -> str:
