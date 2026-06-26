@@ -38,20 +38,106 @@ class DeepSeekRequestError(DeepSeekError):
     user_message = "AI 请求参数无效，请检查模型配置。"
 
 
+QUERY_STOP_TERMS = {
+    '一下',
+    '这个',
+    '这些',
+    '这份',
+    '这篇',
+    '里面',
+    '内容',
+    '请问',
+    '请你',
+    '帮我',
+    '根据',
+    '基于',
+    '总结',
+    '概括',
+    '归纳',
+    '整理',
+}
+
+BROAD_CONTEXT_TERMS = {
+    '总结',
+    '概括',
+    '归纳',
+    '摘要',
+    '梳理',
+    '整理',
+    '全文',
+    '文档',
+    '资料',
+    '文件',
+    '上传',
+    '读取',
+    '读到',
+    '报告',
+    '论文',
+    'notebook',
+    'summarize',
+    'summary',
+    'overview',
+}
+
+
 def _tokenize(query: str) -> list[str]:
     query = query.strip().lower()
     if not query:
         return []
     tokens = re.split(r'[\s,，.。;；:：!?！？()\[\]{}"“”\'`]+', query)
-    return [t for t in tokens if len(t) >= 2][:8]
+    terms: list[str] = []
+    for token in tokens:
+        if len(token) < 2:
+            continue
+        terms.extend(_expand_search_terms(token))
+    return _unique_terms(terms)[:12]
+
+
+def _expand_search_terms(token: str) -> list[str]:
+    if not re.search(r'[\u4e00-\u9fff]', token):
+        return [] if token in QUERY_STOP_TERMS else [token]
+
+    cleaned = token
+    for term in QUERY_STOP_TERMS:
+        cleaned = cleaned.replace(term, ' ')
+
+    terms: list[str] = []
+    for segment in re.findall(r'[\u4e00-\u9fffA-Za-z0-9]+', cleaned):
+        if len(segment) < 2:
+            continue
+        if segment not in QUERY_STOP_TERMS:
+            terms.append(segment)
+        if len(segment) > 4 and re.search(r'[\u4e00-\u9fff]', segment):
+            terms.extend(
+                segment[index:index + 2]
+                for index in range(0, len(segment) - 1)
+            )
+    return terms
+
+
+def _unique_terms(terms: list[str]) -> list[str]:
+    seen: set[str] = set()
+    unique: list[str] = []
+    for term in terms:
+        if term in QUERY_STOP_TERMS or term in seen:
+            continue
+        seen.add(term)
+        unique.append(term)
+    return unique
+
+
+def _is_broad_context_query(query: str) -> bool:
+    lowered = query.lower()
+    return any(term in lowered for term in BROAD_CONTEXT_TERMS)
 
 
 def retrieve_citations(notebook_id: int, query: str, top_k: int = 5) -> list[Citation]:
     tokens = _tokenize(query)
-    qs = DocumentChunk.objects.select_related('document').filter(
+    base_qs = DocumentChunk.objects.select_related('document').filter(
         document__notebook_id=notebook_id,
         document__status=DocumentStatus.COMPLETED,
     )
+    qs = base_qs
 
     if tokens:
         token_q = Q()
@@ -59,7 +145,9 @@ def retrieve_citations(notebook_id: int, query: str, top_k: int = 5) -> list[Cit
             token_q |= Q(content__icontains=t)
         qs = qs.filter(token_q)
 
-    chunks = list(qs.order_by('-id')[: max(top_k * 3, top_k)])
+    chunks = list(qs.order_by('-id')[: max(top_k * 3, top_k)]) if tokens else []
+    if not chunks and _is_broad_context_query(query):
+        chunks = list(base_qs.order_by('-document__created_at', 'position')[:top_k])
 
     def score(chunk: DocumentChunk) -> int:
         text = (chunk.content or '').lower()
@@ -88,6 +176,7 @@ def build_prompt(
     citations: list[Citation],
     max_context_chars: int = 8000,
     web_results: list[WebResult] | None = None,
+    history: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     context_blocks: list[str] = []
     remaining = max_context_chars
@@ -132,10 +221,15 @@ def build_prompt(
     context = "\n\n".join(context_blocks) if context_blocks else ""
     user = f"用户问题：{query}\n\n资料片段：\n{context}" if context else f"用户问题：{query}\n\n资料片段：无"
 
-    return [
-        {"role": "system", "content": system},
-        {"role": "user", "content": user},
-    ]
+    messages = [{"role": "system", "content": system}]
+    for item in history or []:
+        role = item.get("role")
+        content = (item.get("content") or "").strip()
+        if role not in {"user", "assistant"} or not content:
+            continue
+        messages.append({"role": role, "content": content[:1000]})
+    messages.append({"role": "user", "content": user})
+    return messages
 
 
 def call_deepseek_chat(messages: list[dict[str, Any]]) -> str:

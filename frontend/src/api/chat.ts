@@ -42,6 +42,8 @@ export const chatApi = {
     api.get<Conversation[]>(`/notebooks/${notebookId}/conversations/`),
   createConversation: (notebookId: number, title?: string) =>
     api.post<Conversation>(`/notebooks/${notebookId}/conversations/`, { title }),
+  deleteConversation: (conversationId: number) =>
+    api.delete(`/conversations/${conversationId}/`),
   listMessages: (conversationId: number) =>
     api.get<Message[]>(`/conversations/${conversationId}/messages/`),
   sendMessage: (

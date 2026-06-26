@@ -8,6 +8,9 @@ class ApiRenderer(JSONRenderer):
         response = renderer_context.get('response') if renderer_context else None
         status_code = response.status_code if response else 200
 
+        if status_code == 204:
+            return b''
+
         if isinstance(data, dict) and 'code' in data and 'data' in data:
             return super().render(data, accepted_media_type, renderer_context)
 

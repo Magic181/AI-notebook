@@ -363,6 +363,14 @@ POST /api/v1/notebooks/{notebook_id}/conversations/
 GET /api/v1/conversations/{conversation_id}/messages/
 ```
 
+### 删除会话
+
+```http
+DELETE /api/v1/conversations/{conversation_id}/
+```
+
+**响应 204：** 无 body。只允许删除当前用户自己 Notebook 下的会话，消息会随会话级联删除。
+
 ### 发送消息
 
 ```http

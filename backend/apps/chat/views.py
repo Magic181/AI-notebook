@@ -59,6 +59,15 @@ class ConversationMessageListView(APIView):
         return Response(MessageSerializer(messages, many=True).data)
 
 
+class ConversationDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, conversation_pk: int):
+        conv = get_user_conversation(request.user, conversation_pk)
+        conv.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class ConversationSendMessageView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -71,6 +80,8 @@ class ConversationSendMessageView(APIView):
             "search_mode",
             SendMessageSerializer.SEARCH_MODE_LOCAL,
         )
+        history_messages = list(conv.messages.order_by("-id")[:6])
+        history_messages.reverse()
 
         with transaction.atomic():
             user_msg = Message.objects.create(
@@ -78,7 +89,12 @@ class ConversationSendMessageView(APIView):
             )
             conv.save(update_fields=["updated_at"])
 
-        assistant_draft = generate_assistant_draft(conv, content, search_mode)
+        assistant_draft = generate_assistant_draft(
+            conv,
+            content,
+            search_mode,
+            history_messages=history_messages,
+        )
 
         with transaction.atomic():
             assistant_msg = Message.objects.create(
@@ -99,4 +115,3 @@ class ConversationSendMessageView(APIView):
                 "assistant_message": MessageSerializer(assistant_msg).data,
             }
         )
-

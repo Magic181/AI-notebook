@@ -15,19 +15,27 @@
         </button>
       </div>
       <div class="max-h-[calc(100vh-120px)] overflow-y-auto p-2">
-        <button
+        <div
           v-for="c in conversations"
           :key="c.id"
-          class="mb-1 w-full truncate rounded-lg px-3 py-2 text-left text-sm transition-colors"
-          :class="
-            c.id === activeConversationId
-              ? 'bg-[var(--primary)]/10 text-[var(--primary)]'
-              : 'text-[var(--text-secondary)] hover:bg-[var(--border)] hover:text-[var(--text)]'
-          "
-          @click="selectConversation(c.id)"
+          class="mb-1 flex items-center gap-1 rounded-lg transition-colors"
+          :class="c.id === activeConversationId ? 'bg-[var(--primary)]/10' : 'hover:bg-[var(--border)]'"
         >
-          {{ c.title || '未命名会话' }}
-        </button>
+          <button
+            class="min-w-0 flex-1 truncate px-3 py-2 text-left text-sm"
+            :class="c.id === activeConversationId ? 'text-[var(--primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text)]'"
+            @click="selectConversation(c.id)"
+          >
+            {{ c.title || '未命名会话' }}
+          </button>
+          <button
+            class="shrink-0 rounded-lg px-2 py-1.5 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+            :disabled="deletingConversation"
+            @click="openDeleteConversation(c)"
+          >
+            删除
+          </button>
+        </div>
       </div>
     </aside>
 
@@ -39,12 +47,22 @@
             {{ headerHint }}
           </p>
         </div>
-        <button
-          class="rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] md:hidden"
-          @click="createConversation()"
-        >
-          新会话
-        </button>
+        <div class="flex shrink-0 items-center gap-2 md:hidden">
+          <button
+            class="rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
+            @click="createConversation()"
+          >
+            新会话
+          </button>
+          <button
+            v-if="activeConversation"
+            class="rounded-lg px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+            :disabled="deletingConversation"
+            @click="openDeleteConversation(activeConversation)"
+          >
+            删除
+          </button>
+        </div>
       </header>
 
       <div ref="messagesViewport" class="flex-1 space-y-4 overflow-y-auto p-6">
@@ -132,6 +150,34 @@
       </div>
     </div>
   </div>
+
+  <div
+    v-if="conversationToDelete"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+    @click.self="conversationToDelete = null"
+  >
+    <div class="w-full max-w-sm rounded-lg bg-[var(--bg)] p-6 shadow-xl">
+      <h2 class="text-lg font-semibold text-[var(--text)]">确认删除会话</h2>
+      <p class="mt-2 break-words text-sm text-[var(--text-secondary)]">
+        确定要删除「{{ conversationToDelete.title || '未命名会话' }}」吗？此操作会删除该会话下的所有消息。
+      </p>
+      <div class="mt-6 flex justify-end gap-3">
+        <button
+          class="rounded-lg px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
+          @click="conversationToDelete = null"
+        >
+          取消
+        </button>
+        <button
+          :disabled="deletingConversation"
+          class="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-50"
+          @click="deleteConversation"
+        >
+          {{ deletingConversation ? '删除中...' : '删除' }}
+        </button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -149,9 +195,11 @@ const messages = ref<Message[]>([])
 const input = ref('')
 const searchMode = ref<SearchMode>('local')
 const messagesViewport = ref<HTMLElement | null>(null)
+const conversationToDelete = ref<Conversation | null>(null)
 
 const loadingMessages = ref(false)
 const creatingConversation = ref(false)
+const deletingConversation = ref(false)
 const sending = ref(false)
 
 const searchModes: Array<{ label: string; value: SearchMode }> = [
@@ -163,6 +211,10 @@ const searchModes: Array<{ label: string; value: SearchMode }> = [
 const headerHint = computed(() => {
   if (!activeConversationId.value) return '正在初始化会话...'
   return `会话 #${activeConversationId.value}`
+})
+
+const activeConversation = computed(() => {
+  return conversations.value.find((item) => item.id === activeConversationId.value) || null
 })
 
 const emptyStateHint = computed(() => {
@@ -205,8 +257,40 @@ async function createConversation() {
 }
 
 async function selectConversation(conversationId: number) {
+  if (conversationId === activeConversationId.value) return
   activeConversationId.value = conversationId
   await loadMessages()
+}
+
+function openDeleteConversation(conversation: Conversation) {
+  conversationToDelete.value = conversation
+}
+
+async function deleteConversation() {
+  const conversation = conversationToDelete.value
+  if (!conversation) return
+  deletingConversation.value = true
+  try {
+    await chatApi.deleteConversation(conversation.id)
+    conversations.value = conversations.value.filter((item) => item.id !== conversation.id)
+    conversationToDelete.value = null
+
+    if (activeConversationId.value !== conversation.id) return
+
+    const nextConversation = conversations.value[0]
+    if (nextConversation) {
+      activeConversationId.value = nextConversation.id
+      await loadMessages()
+    } else {
+      activeConversationId.value = null
+      messages.value = []
+      await createConversation()
+    }
+  } catch {
+    // error shown by axios interceptor
+  } finally {
+    deletingConversation.value = false
+  }
 }
 
 async function loadMessages() {

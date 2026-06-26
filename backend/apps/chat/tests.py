@@ -6,10 +6,11 @@ from requests import exceptions as request_exceptions
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from apps.documents.models import Document, DocumentChunk, DocumentStatus
 from apps.notebooks.models import Notebook
 
 from .models import Conversation, Message, MessageRole
-from .rag import DeepSeekAuthError, build_prompt, call_deepseek_chat
+from .rag import DeepSeekAuthError, build_prompt, call_deepseek_chat, retrieve_citations
 from .services import (
     AI_FAILURE_MESSAGE,
     WEB_ONLY_SEARCH_DEGRADED_MESSAGE,
@@ -197,6 +198,100 @@ class ConversationSendMessageTests(TestCase):
         self.assertIn('这是通用能力回答。', assistant.content)
         self.assertEqual(assistant.citations, [])
 
+    @patch('apps.chat.services.retrieve_citations', return_value=[])
+    @patch('apps.chat.services.call_deepseek_chat', return_value='可以接着回答。')
+    def test_follow_up_message_includes_recent_history(
+        self,
+        call_deepseek_chat,
+        retrieve_citations,
+    ):
+        Message.objects.create(
+            conversation=self.conversation,
+            role=MessageRole.USER,
+            content='我上传的文件你能读到吗',
+            citations=[],
+        )
+        Message.objects.create(
+            conversation=self.conversation,
+            role=MessageRole.ASSISTANT,
+            content='暂时没有读到资料片段。',
+            citations=[],
+        )
+
+        response = self.client.post(
+            f'/api/v1/conversations/{self.conversation.id}/messages/send/',
+            {'content': '现在呢'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        retrieve_citations.assert_called_once_with(
+            self.notebook.id,
+            '我上传的文件你能读到吗\n现在呢',
+            top_k=5,
+        )
+        messages = call_deepseek_chat.call_args.args[0]
+        self.assertEqual(messages[1]['role'], 'user')
+        self.assertEqual(messages[1]['content'], '我上传的文件你能读到吗')
+        self.assertEqual(messages[2]['role'], 'assistant')
+        self.assertEqual(messages[2]['content'], '暂时没有读到资料片段。')
+        self.assertIn('用户问题：现在呢', messages[-1]['content'])
+
+
+class ConversationDeleteTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
+            username='delete-user',
+            email='delete@example.com',
+            password='test-password',
+        )
+        self.other_user = user_model.objects.create_user(
+            username='other-delete-user',
+            email='other-delete@example.com',
+            password='test-password',
+        )
+        self.notebook = Notebook.objects.create(user=self.user, name='Delete notebook')
+        self.other_notebook = Notebook.objects.create(
+            user=self.other_user,
+            name='Other notebook',
+        )
+        self.conversation = Conversation.objects.create(
+            notebook=self.notebook,
+            title='Delete me',
+        )
+        Message.objects.create(
+            conversation=self.conversation,
+            role=MessageRole.USER,
+            content='hello',
+            citations=[],
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_delete_conversation_removes_messages(self):
+        response = self.client.delete(
+            f'/api/v1/conversations/{self.conversation.id}/',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(response.content, b'')
+        self.assertFalse(Conversation.objects.filter(id=self.conversation.id).exists())
+        self.assertEqual(Message.objects.filter(conversation_id=self.conversation.id).count(), 0)
+
+    def test_delete_other_users_conversation_returns_not_found(self):
+        other_conversation = Conversation.objects.create(
+            notebook=self.other_notebook,
+            title='Not yours',
+        )
+
+        response = self.client.delete(
+            f'/api/v1/conversations/{other_conversation.id}/',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertTrue(Conversation.objects.filter(id=other_conversation.id).exists())
+
 
 class BuildPromptTests(TestCase):
     def test_prompt_allows_general_questions_but_keeps_rag_guardrail(self):
@@ -224,6 +319,77 @@ class BuildPromptTests(TestCase):
         self.assertIn('网页搜索结果', messages[0]['content'])
         self.assertIn('[W1] 网页：Web title', messages[1]['content'])
         self.assertIn('https://example.com', messages[1]['content'])
+
+    def test_prompt_includes_recent_conversation_history(self):
+        messages = build_prompt(
+            '现在呢',
+            [],
+            history=[
+                {'role': 'user', 'content': '我上传的文件你能读到吗'},
+                {'role': 'assistant', 'content': '暂时不能。'},
+            ],
+        )
+
+        self.assertEqual(messages[1]['role'], 'user')
+        self.assertEqual(messages[1]['content'], '我上传的文件你能读到吗')
+        self.assertEqual(messages[2]['role'], 'assistant')
+        self.assertIn('用户问题：现在呢', messages[3]['content'])
+
+
+class RetrieveCitationTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
+            username='rag-user',
+            email='rag@example.com',
+            password='test-password',
+        )
+        self.notebook = Notebook.objects.create(user=self.user, name='RAG notebook')
+        self.document = Document.objects.create(
+            notebook=self.notebook,
+            name='report.docx',
+            file_path='files/report.docx',
+            file_type='docx',
+            status=DocumentStatus.COMPLETED,
+            chunk_count=2,
+        )
+        DocumentChunk.objects.create(
+            document=self.document,
+            content='项目背景和系统设计内容，包含需求分析、数据库设计和测试结果。',
+            position=0,
+        )
+        DocumentChunk.objects.create(
+            document=self.document,
+            content='本项目属于软件工程课程实践，主要实现笔记本资料管理和 AI 对话。',
+            position=1,
+        )
+
+    def test_chinese_sentence_query_matches_terms_inside_question(self):
+        citations = retrieve_citations(
+            self.notebook.id,
+            '总结这个软件工程综合实验报告',
+            top_k=2,
+        )
+
+        self.assertEqual(len(citations), 1)
+        self.assertIn('软件工程课程实践', citations[0].chunk_text)
+
+    def test_broad_summary_query_falls_back_to_document_context(self):
+        citations = retrieve_citations(self.notebook.id, '总结一下这份报告', top_k=1)
+
+        self.assertEqual(len(citations), 1)
+        self.assertIn('项目背景', citations[0].chunk_text)
+
+    def test_uploaded_file_query_falls_back_to_document_context(self):
+        citations = retrieve_citations(self.notebook.id, '我上传的文件你能读到吗', top_k=1)
+
+        self.assertEqual(len(citations), 1)
+        self.assertIn('项目背景', citations[0].chunk_text)
+
+    def test_specific_miss_does_not_return_unrelated_context(self):
+        citations = retrieve_citations(self.notebook.id, '量子计算复杂度', top_k=1)
+
+        self.assertEqual(citations, [])
 
 
 class DeepSeekRetryTests(TestCase):
