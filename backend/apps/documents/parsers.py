@@ -14,6 +14,7 @@ class ParseError(Exception):
 
 
 ParsedBlock = dict[str, Any]
+PARSER_VERSION = 1
 
 
 def parse_file(file_path: Path, file_type: str) -> str:
@@ -24,28 +25,26 @@ def parse_file(file_path: Path, file_type: str) -> str:
 def parse_file_blocks(file_path: Path, file_type: str) -> list[ParsedBlock]:
     parsers = {
         'txt': _parse_text_blocks,
-        'md': _parse_text_blocks,
+        'md': _parse_markdown_blocks,
         'pdf': _parse_pdf_blocks,
         'docx': _parse_docx_blocks,
     }
     parser = parsers.get(file_type)
     if not parser:
         raise ParseError(f'不支持的文件类型: .{file_type}')
-    return parser(file_path)
+    return parser(file_path, file_type)
 
 
-def _parse_text_blocks(file_path: Path) -> list[ParsedBlock]:
-    for encoding in ('utf-8', 'utf-8-sig', 'gbk'):
-        try:
-            text = file_path.read_text(encoding=encoding)
-            break
-        except UnicodeDecodeError:
-            continue
-    else:
-        raise ParseError('无法识别文本编码')
+def _parse_text_blocks(file_path: Path, file_type: str) -> list[ParsedBlock]:
+    text = _read_text_file(file_path)
 
     blocks = [
-        _block(content=paragraph, source_type='paragraph', block_index=index)
+        _block(
+            content=paragraph,
+            source_type='paragraph',
+            block_index=index,
+            file_type=file_type,
+        )
         for index, paragraph in enumerate(_split_paragraphs(text))
     ]
     if not blocks:
@@ -53,7 +52,115 @@ def _parse_text_blocks(file_path: Path) -> list[ParsedBlock]:
     return blocks
 
 
-def _parse_pdf_blocks(file_path: Path) -> list[ParsedBlock]:
+def _parse_markdown_blocks(file_path: Path, file_type: str) -> list[ParsedBlock]:
+    text = _read_text_file(file_path)
+    blocks: list[ParsedBlock] = []
+    current_lines: list[str] = []
+    in_code_block = False
+    code_lines: list[str] = []
+    code_language = ''
+    table_lines: list[str] = []
+
+    def flush_paragraph() -> None:
+        nonlocal current_lines
+        content = '\n'.join(current_lines).strip()
+        if content:
+            blocks.append(
+                _block(
+                    content=content,
+                    source_type='paragraph',
+                    block_index=len(blocks),
+                    file_type=file_type,
+                )
+            )
+        current_lines = []
+
+    def flush_code() -> None:
+        nonlocal code_lines, code_language
+        content = '\n'.join(code_lines).strip()
+        if content:
+            blocks.append(
+                _block(
+                    content=content,
+                    source_type='code',
+                    block_index=len(blocks),
+                    file_type=file_type,
+                    language=code_language,
+                )
+            )
+        code_lines = []
+        code_language = ''
+
+    def flush_table() -> None:
+        nonlocal table_lines
+        if table_lines:
+            blocks.append(
+                _block(
+                    content='\n'.join(table_lines).strip(),
+                    source_type='table',
+                    block_index=len(blocks),
+                    file_type=file_type,
+                    table_format='markdown',
+                    row_count=len(table_lines),
+                )
+            )
+        table_lines = []
+
+    for raw_line in text.splitlines():
+        line = raw_line.rstrip()
+
+        if line.strip().startswith('```'):
+            if in_code_block:
+                flush_code()
+                in_code_block = False
+            else:
+                flush_paragraph()
+                flush_table()
+                in_code_block = True
+                code_language = line.strip()[3:].strip()
+            continue
+
+        if in_code_block:
+            code_lines.append(line)
+            continue
+
+        heading_level = _markdown_heading_level(line)
+        if heading_level:
+            flush_paragraph()
+            flush_table()
+            blocks.append(
+                _block(
+                    content=line.lstrip('#').strip(),
+                    source_type='heading',
+                    block_index=len(blocks),
+                    file_type=file_type,
+                    heading_level=heading_level,
+                )
+            )
+            continue
+
+        if _is_markdown_table_line(line):
+            flush_paragraph()
+            table_lines.append(line.strip())
+            continue
+
+        flush_table()
+        if not line.strip():
+            flush_paragraph()
+            continue
+        current_lines.append(line)
+
+    if in_code_block:
+        flush_code()
+    flush_table()
+    flush_paragraph()
+
+    if not blocks:
+        raise ParseError('文档内容为空')
+    return blocks
+
+
+def _parse_pdf_blocks(file_path: Path, file_type: str) -> list[ParsedBlock]:
     reader = PdfReader(str(file_path))
     blocks = []
     for page_index, page in enumerate(reader.pages, start=1):
@@ -64,6 +171,7 @@ def _parse_pdf_blocks(file_path: Path) -> list[ParsedBlock]:
                     content=f'[第{page_index}页]\n{text}',
                     source_type='page',
                     block_index=len(blocks),
+                    file_type=file_type,
                     page=page_index,
                 )
             )
@@ -72,7 +180,7 @@ def _parse_pdf_blocks(file_path: Path) -> list[ParsedBlock]:
     return blocks
 
 
-def _parse_docx_blocks(file_path: Path) -> list[ParsedBlock]:
+def _parse_docx_blocks(file_path: Path, file_type: str) -> list[ParsedBlock]:
     doc = DocxDocument(str(file_path))
     blocks: list[ParsedBlock] = []
     table_index = 0
@@ -82,12 +190,18 @@ def _parse_docx_blocks(file_path: Path) -> list[ParsedBlock]:
             text = item.text.strip()
             if not text:
                 continue
+            style_name = item.style.name if item.style else ''
+            heading_level = _docx_heading_level(style_name)
+            source_type = 'heading' if heading_level else 'paragraph'
+            metadata = {'heading_level': heading_level} if heading_level else {}
             blocks.append(
                 _block(
                     content=text,
-                    source_type='paragraph',
+                    source_type=source_type,
                     block_index=len(blocks),
-                    style=item.style.name if item.style else '',
+                    file_type=file_type,
+                    style=style_name,
+                    **metadata,
                 )
             )
             continue
@@ -101,6 +215,7 @@ def _parse_docx_blocks(file_path: Path) -> list[ParsedBlock]:
                 content=f'[表格 {table_index}]\n{table_text}',
                 source_type='table',
                 block_index=len(blocks),
+                file_type=file_type,
                 table_index=table_index,
                 row_count=row_count,
                 col_count=col_count,
@@ -132,21 +247,64 @@ def _format_docx_table(table: Table) -> tuple[str, int, int]:
     return '\n'.join(rows), len(rows), col_count
 
 
+def _read_text_file(file_path: Path) -> str:
+    for encoding in ('utf-8', 'utf-8-sig', 'gbk'):
+        try:
+            return file_path.read_text(encoding=encoding)
+        except UnicodeDecodeError:
+            continue
+    raise ParseError('无法识别文本编码')
+
+
 def _split_paragraphs(text: str) -> list[str]:
     return [part.strip() for part in text.split('\n\n') if part.strip()]
+
+
+def _markdown_heading_level(line: str) -> int | None:
+    stripped = line.strip()
+    if not stripped.startswith('#'):
+        return None
+    marker = stripped.split(' ', 1)[0]
+    if set(marker) == {'#'} and 1 <= len(marker) <= 6:
+        return len(marker)
+    return None
+
+
+def _is_markdown_table_line(line: str) -> bool:
+    stripped = line.strip()
+    return stripped.startswith('|') and stripped.endswith('|') and stripped.count('|') >= 2
+
+
+def _docx_heading_level(style_name: str) -> int | None:
+    normalized = style_name.lower()
+    if normalized.startswith('heading '):
+        value = normalized.removeprefix('heading ').strip()
+        return int(value) if value.isdigit() else None
+    if style_name.startswith('标题 '):
+        value = style_name.removeprefix('标题 ').strip()
+        return int(value) if value.isdigit() else None
+    return None
 
 
 def _normalize_cell_text(text: str) -> str:
     return ' '.join(part.strip() for part in text.splitlines() if part.strip())
 
 
-def _block(content: str, source_type: str, block_index: int, **metadata) -> ParsedBlock:
+def _block(
+    content: str,
+    source_type: str,
+    block_index: int,
+    file_type: str,
+    **metadata,
+) -> ParsedBlock:
     return {
         'content': content.strip(),
         'source_type': source_type,
         'metadata': {
             'source_type': source_type,
             'block_index': block_index,
+            'file_type': file_type,
+            'parser_version': PARSER_VERSION,
             **{key: value for key, value in metadata.items() if value not in ('', None)},
         },
     }

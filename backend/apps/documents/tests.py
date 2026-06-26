@@ -96,7 +96,10 @@ class DocxParsingTests(TestCase):
             ['paragraph', 'table', 'paragraph'],
         )
         self.assertIn('实验目标', blocks[0]['content'])
+        self.assertEqual(blocks[0]['metadata']['file_type'], 'docx')
+        self.assertEqual(blocks[0]['metadata']['parser_version'], 1)
         self.assertIn('模块 | 状态', blocks[1]['content'])
+        self.assertEqual(blocks[1]['metadata']['file_type'], 'docx')
         self.assertIn('行 2: 登录 | 通过', blocks[1]['content'])
         self.assertIn('实验结论', blocks[2]['content'])
         self.assertLess(text.index('实验目标'), text.index('[表格 1]'))
@@ -124,6 +127,89 @@ class DocxParsingTests(TestCase):
         self.assertEqual(chunks[0]['metadata']['source_type'], 'paragraph')
         self.assertEqual(chunks[1]['metadata']['source_type'], 'table')
         self.assertEqual(chunks[1]['metadata']['table_index'], 1)
+
+    def test_chunk_blocks_preserves_file_type_when_merging_blocks(self):
+        chunks = chunk_blocks([
+            {
+                'content': '第一段',
+                'metadata': {
+                    'source_type': 'paragraph',
+                    'block_index': 0,
+                    'file_type': 'md',
+                    'parser_version': 1,
+                },
+            },
+            {
+                'content': '第二段',
+                'metadata': {
+                    'source_type': 'paragraph',
+                    'block_index': 1,
+                    'file_type': 'md',
+                    'parser_version': 1,
+                },
+            },
+        ])
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0]['metadata']['source_type'], 'paragraph')
+        self.assertEqual(chunks[0]['metadata']['file_type'], 'md')
+        self.assertEqual(chunks[0]['metadata']['block_indexes'], [0, 1])
+
+    def test_text_parser_uses_unified_block_metadata(self):
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / 'notes.txt'
+            path.write_text('第一段\n\n第二段', encoding='utf-8')
+
+            blocks = parse_file_blocks(path, 'txt')
+
+        self.assertEqual(len(blocks), 2)
+        self.assertEqual(blocks[0]['source_type'], 'paragraph')
+        self.assertEqual(blocks[0]['metadata']['file_type'], 'txt')
+        self.assertEqual(blocks[0]['metadata']['parser_version'], 1)
+
+    def test_markdown_parser_extracts_heading_code_and_table_blocks(self):
+        markdown = (
+            '# 实验报告\n\n'
+            '正文段落。\n\n'
+            '| 模块 | 状态 |\n'
+            '| --- | --- |\n'
+            '| 登录 | 通过 |\n\n'
+            '```python\n'
+            'print("ok")\n'
+            '```\n'
+        )
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / 'report.md'
+            path.write_text(markdown, encoding='utf-8')
+
+            blocks = parse_file_blocks(path, 'md')
+
+        self.assertEqual(
+            [block['metadata']['source_type'] for block in blocks],
+            ['heading', 'paragraph', 'table', 'code'],
+        )
+        self.assertEqual(blocks[0]['metadata']['heading_level'], 1)
+        self.assertEqual(blocks[0]['metadata']['file_type'], 'md')
+        self.assertIn('| 登录 | 通过 |', blocks[2]['content'])
+        self.assertEqual(blocks[3]['metadata']['language'], 'python')
+
+    @patch('apps.documents.parsers.PdfReader')
+    def test_pdf_parser_uses_page_blocks_with_unified_metadata(self, pdf_reader):
+        class FakePage:
+            def __init__(self, text):
+                self.text = text
+
+            def extract_text(self):
+                return self.text
+
+        pdf_reader.return_value.pages = [FakePage('第一页内容'), FakePage('第二页内容')]
+
+        blocks = parse_file_blocks(Path('fake.pdf'), 'pdf')
+
+        self.assertEqual([block['metadata']['source_type'] for block in blocks], ['page', 'page'])
+        self.assertEqual(blocks[0]['metadata']['file_type'], 'pdf')
+        self.assertEqual(blocks[0]['metadata']['page'], 1)
+        self.assertIn('[第2页]', blocks[1]['content'])
 
     @staticmethod
     def _write_docx_with_table(path: Path) -> None:
@@ -182,3 +268,4 @@ class ParseDocumentTaskTests(TransactionTestCase):
         )
         self.assertIn('模块 | 状态', table_chunk.content)
         self.assertEqual(table_chunk.metadata['table_index'], 1)
+        self.assertEqual(table_chunk.metadata['file_type'], 'docx')

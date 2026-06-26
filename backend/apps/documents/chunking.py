@@ -101,17 +101,28 @@ def _merge_metadata(items: list[dict[str, Any]]) -> dict[str, Any]:
 
     source_types = []
     block_indexes = []
+    file_types = []
+    parser_versions = []
     for item in items:
         source_type = item.get('source_type')
         block_index = item.get('block_index')
+        file_type = item.get('file_type')
+        parser_version = item.get('parser_version')
         if source_type and source_type not in source_types:
             source_types.append(source_type)
         if block_index is not None:
             block_indexes.append(block_index)
+        if file_type and file_type not in file_types:
+            file_types.append(file_type)
+        if parser_version is not None and parser_version not in parser_versions:
+            parser_versions.append(parser_version)
     return {
         'source_type': source_types[0] if len(source_types) == 1 else 'mixed',
         'source_types': source_types,
         'block_indexes': block_indexes,
+        'file_type': file_types[0] if len(file_types) == 1 else None,
+        'file_types': file_types,
+        'parser_version': parser_versions[0] if len(parser_versions) == 1 else None,
     }
 
 
