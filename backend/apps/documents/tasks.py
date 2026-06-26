@@ -1,9 +1,9 @@
 from celery import shared_task
 from django.db import transaction
 
-from .chunking import chunk_text
+from .chunking import chunk_blocks
 from .models import Document, DocumentChunk, DocumentStatus
-from .parsers import ParseError, parse_file
+from .parsers import ParseError, parse_file_blocks
 from .storage import get_absolute_path
 
 
@@ -23,8 +23,8 @@ def parse_document_task(document_id: int) -> None:
         if not file_path.exists():
             raise ParseError('文件不存在')
 
-        text = parse_file(file_path, document.file_type)
-        chunks = chunk_text(text)
+        blocks = parse_file_blocks(file_path, document.file_type)
+        chunks = chunk_blocks(blocks)
         if not chunks:
             raise ParseError('文档内容为空')
 
