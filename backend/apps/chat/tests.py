@@ -544,6 +544,28 @@ class RetrieveCitationTests(TestCase):
         self.assertEqual(citations[0].source_type, 'code')
         self.assertIn('chunk_blocks', citations[0].chunk_text)
 
+    def test_retrieval_metadata_explains_score_and_reason(self):
+        citations = retrieve_citations(self.notebook.id, '图里写了什么', top_k=1)
+
+        self.assertGreater(citations[0].metadata['retrieval_score'], 0)
+        self.assertEqual(citations[0].metadata['retrieval_reason'], 'source_intent')
+
+    def test_rerank_prefers_diverse_evidence_over_adjacent_duplicates(self):
+        DocumentChunk.objects.create(
+            document=self.document,
+            content='项目 | 状态\n资料管理 | 已完成',
+            position=5,
+            metadata={'source_type': 'table', 'table_index': 1},
+        )
+
+        citations = retrieve_citations(self.notebook.id, '项目', top_k=2)
+
+        self.assertEqual(len(citations), 2)
+        self.assertEqual(
+            {citation.source_type for citation in citations},
+            {'paragraph', 'table'},
+        )
+
 
 class DeepSeekRetryTests(TestCase):
     @patch.dict('os.environ', {

@@ -30,6 +30,14 @@ class QueryIntent:
     fallback_source_types: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class ScoredChunk:
+    chunk: DocumentChunk
+    score: int
+    reason: str
+    evidence_key: tuple[Any, ...]
+
+
 class DeepSeekError(RuntimeError):
     user_message = "AI 服务暂时不可用，请稍后重试。"
 
@@ -284,21 +292,25 @@ def retrieve_citations(notebook_id: int, query: str, top_k: int = 5) -> list[Cit
     chunks = _deduplicate_chunks(chunks)
     if not chunks and is_broad_context_query:
         chunks = list(base_qs.order_by('-document__created_at', 'position')[:top_k])
+        use_broad_ranking = True
 
-    def score(chunk: DocumentChunk) -> int:
-        text = (chunk.content or '').lower()
-        source_type = (chunk.metadata or {}).get('source_type', 'text')
-        token_weight = 1 if use_broad_ranking else 4
-        token_score = sum(text.count(t) for t in tokens) * token_weight if tokens else 0
-        broad_score = _broad_context_score(chunk) if use_broad_ranking else 0
-        return token_score + intent.source_boosts.get(source_type, 0) + broad_score
-
-    chunks.sort(key=lambda chunk: (score(chunk), -chunk.id), reverse=True)
-    chunks = chunks[:top_k]
+    scored_chunks = _score_chunks(
+        chunks=chunks,
+        tokens=tokens,
+        intent=intent,
+        use_broad_ranking=use_broad_ranking,
+    )
+    scored_chunks = _select_diverse_chunks(scored_chunks, top_k=top_k)
 
     citations: list[Citation] = []
-    for c in chunks:
+    for item in scored_chunks:
+        c = item.chunk
         doc = c.document
+        metadata = {
+            **(c.metadata or {}),
+            'retrieval_score': item.score,
+            'retrieval_reason': item.reason,
+        }
         citations.append(
             Citation(
                 document_id=doc.id,
@@ -307,10 +319,103 @@ def retrieve_citations(notebook_id: int, query: str, top_k: int = 5) -> list[Cit
                 chunk_text=c.content[:500],
                 position=c.position,
                 source_type=(c.metadata or {}).get('source_type', 'text'),
-                metadata=c.metadata or {},
+                metadata=metadata,
             )
         )
     return citations
+
+
+def _score_chunks(
+    chunks: list[DocumentChunk],
+    tokens: list[str],
+    intent: QueryIntent,
+    use_broad_ranking: bool,
+) -> list[ScoredChunk]:
+    scored: list[ScoredChunk] = []
+    for chunk in chunks:
+        metadata = chunk.metadata or {}
+        source_type = metadata.get('source_type', 'text')
+        text = (chunk.content or '').lower()
+        token_weight = 1 if use_broad_ranking else 4
+        token_hits = sum(text.count(t) for t in tokens) if tokens else 0
+        token_score = token_hits * token_weight
+        source_score = intent.source_boosts.get(source_type, 0)
+        broad_score = _broad_context_score(chunk) if use_broad_ranking else 0
+        score = token_score + source_score + broad_score
+        if score <= 0:
+            continue
+        scored.append(
+            ScoredChunk(
+                chunk=chunk,
+                score=score,
+                reason=_retrieval_reason(token_hits, source_score, broad_score),
+                evidence_key=_evidence_key(chunk),
+            )
+        )
+    scored.sort(key=lambda item: (item.score, -item.chunk.id), reverse=True)
+    return scored
+
+
+def _select_diverse_chunks(scored_chunks: list[ScoredChunk], top_k: int) -> list[ScoredChunk]:
+    selected: list[ScoredChunk] = []
+    selected_keys: set[tuple[Any, ...]] = set()
+
+    for item in scored_chunks:
+        if item.evidence_key in selected_keys:
+            continue
+        selected.append(item)
+        selected_keys.add(item.evidence_key)
+        if len(selected) >= top_k:
+            return selected
+
+    if len(selected) >= top_k:
+        return selected
+
+    selected_ids = {item.chunk.id for item in selected}
+    for item in scored_chunks:
+        if item.chunk.id in selected_ids:
+            continue
+        selected.append(item)
+        selected_ids.add(item.chunk.id)
+        if len(selected) >= top_k:
+            break
+    return selected
+
+
+def _retrieval_reason(token_hits: int, source_score: int, broad_score: int) -> str:
+    reasons = []
+    if token_hits:
+        reasons.append('keyword_match')
+    if source_score:
+        reasons.append('source_intent')
+    if broad_score:
+        reasons.append('document_context')
+    return '+'.join(reasons) if reasons else 'unknown'
+
+
+def _evidence_key(chunk: DocumentChunk) -> tuple[Any, ...]:
+    metadata = chunk.metadata or {}
+    source_type = metadata.get('source_type', 'text')
+    document_id = chunk.document_id
+
+    if source_type in {'image_ocr', 'image_caption'}:
+        asset_id = metadata.get('asset_id')
+        if asset_id is not None:
+            return (document_id, 'image', asset_id)
+        asset_position = metadata.get('asset_position')
+        if asset_position is not None:
+            return (document_id, 'image', asset_position)
+
+    if source_type == 'table':
+        table_index = metadata.get('table_index')
+        if table_index is not None:
+            return (document_id, 'table', table_index)
+
+    page = metadata.get('page')
+    if page is not None:
+        return (document_id, source_type, page, chunk.position // 3)
+
+    return (document_id, source_type, chunk.position // 3)
 
 
 def _deduplicate_chunks(chunks: list[DocumentChunk]) -> list[DocumentChunk]:
