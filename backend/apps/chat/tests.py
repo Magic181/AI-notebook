@@ -477,6 +477,24 @@ class RetrieveCitationTests(TestCase):
             position=1,
             metadata={'source_type': 'paragraph'},
         )
+        DocumentChunk.objects.create(
+            document=self.document,
+            content='模块 | 状态\n上传解析 | 已完成\n视觉理解 | 已接入',
+            position=2,
+            metadata={'source_type': 'table', 'table_index': 0},
+        )
+        DocumentChunk.objects.create(
+            document=self.document,
+            content='[图片视觉描述 #1]\n视觉描述：画面展示上传、解析、检索三个阶段的箭头关系。',
+            position=3,
+            metadata={'source_type': 'image_caption', 'asset_position': 0},
+        )
+        DocumentChunk.objects.create(
+            document=self.document,
+            content='def parse_document(file):\n    return chunk_blocks(file)',
+            position=4,
+            metadata={'source_type': 'code', 'language': 'python'},
+        )
 
     def test_chinese_sentence_query_matches_terms_inside_question(self):
         citations = retrieve_citations(
@@ -504,6 +522,27 @@ class RetrieveCitationTests(TestCase):
         citations = retrieve_citations(self.notebook.id, '量子计算复杂度', top_k=1)
 
         self.assertEqual(citations, [])
+
+    def test_image_intent_falls_back_to_image_chunks_without_term_match(self):
+        citations = retrieve_citations(self.notebook.id, '图里写了什么', top_k=1)
+
+        self.assertEqual(len(citations), 1)
+        self.assertEqual(citations[0].source_type, 'image_caption')
+        self.assertIn('箭头关系', citations[0].chunk_text)
+
+    def test_table_intent_prefers_table_chunks(self):
+        citations = retrieve_citations(self.notebook.id, '表格里有哪些模块状态', top_k=1)
+
+        self.assertEqual(len(citations), 1)
+        self.assertEqual(citations[0].source_type, 'table')
+        self.assertIn('视觉理解', citations[0].chunk_text)
+
+    def test_code_intent_prefers_code_chunks(self):
+        citations = retrieve_citations(self.notebook.id, '代码实现里 parse_document 怎么写的', top_k=1)
+
+        self.assertEqual(len(citations), 1)
+        self.assertEqual(citations[0].source_type, 'code')
+        self.assertIn('chunk_blocks', citations[0].chunk_text)
 
 
 class DeepSeekRetryTests(TestCase):

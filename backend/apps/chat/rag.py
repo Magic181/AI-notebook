@@ -24,6 +24,12 @@ class Citation:
     metadata: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class QueryIntent:
+    source_boosts: dict[str, int]
+    fallback_source_types: tuple[str, ...]
+
+
 class DeepSeekError(RuntimeError):
     user_message = "AI 服务暂时不可用，请稍后重试。"
 
@@ -81,6 +87,78 @@ BROAD_CONTEXT_TERMS = {
     'overview',
 }
 
+SOURCE_INTENT_TERMS = {
+    'image': (
+        '图片',
+        '图像',
+        '截图',
+        '配图',
+        '照片',
+        '流程图',
+        '架构图',
+        '图表',
+        '图里',
+        '图中',
+        '看图',
+        'image',
+        'picture',
+        'screenshot',
+        'diagram',
+        'chart',
+    ),
+    'table': (
+        '表格',
+        '表',
+        '清单',
+        '字段',
+        '列',
+        '行',
+        '数据',
+        '统计',
+        'table',
+        'sheet',
+        'column',
+        'row',
+        'dataset',
+    ),
+    'code': (
+        '代码',
+        '函数',
+        '接口',
+        '脚本',
+        '类',
+        '方法',
+        '实现',
+        '报错',
+        'code',
+        'function',
+        'class',
+        'api',
+        'script',
+        'error',
+    ),
+    'heading': (
+        '标题',
+        '章节',
+        '目录',
+        '小节',
+        '结构',
+        'heading',
+        'section',
+        'outline',
+    ),
+}
+
+SOURCE_TYPE_BOOSTS = {
+    'image_caption': {'image': 14},
+    'image_ocr': {'image': 12},
+    'table': {'table': 14},
+    'code': {'code': 14},
+    'heading': {'heading': 8, 'code': 2},
+    'paragraph': {'code': 1, 'heading': 1},
+    'page': {'image': 1, 'table': 1, 'code': 1, 'heading': 1},
+}
+
 
 def _tokenize(query: str) -> list[str]:
     query = query.strip().lower()
@@ -133,29 +211,89 @@ def _is_broad_context_query(query: str) -> bool:
     return any(term in lowered for term in BROAD_CONTEXT_TERMS)
 
 
+def _is_document_availability_query(query: str) -> bool:
+    lowered = query.lower()
+    direct_terms = ('能读到', '读得到', '读取到', '看得到', '识别到')
+    if any(term in lowered for term in direct_terms):
+        return True
+    has_upload_subject = any(term in lowered for term in ('上传', '文件', '文档', '资料'))
+    has_question_signal = any(term in lowered for term in ('能', '吗', '有没有', '是否'))
+    has_read_signal = any(term in lowered for term in ('读', '看', '识别'))
+    return has_upload_subject and has_question_signal and has_read_signal
+
+
+def _detect_query_intent(query: str) -> QueryIntent:
+    lowered = query.lower()
+    matched_intents = {
+        intent
+        for intent, terms in SOURCE_INTENT_TERMS.items()
+        if any(term in lowered for term in terms)
+    }
+    if not matched_intents:
+        return QueryIntent(source_boosts={}, fallback_source_types=())
+
+    source_boosts: dict[str, int] = {}
+    for source_type, boosts in SOURCE_TYPE_BOOSTS.items():
+        score = sum(boost for intent, boost in boosts.items() if intent in matched_intents)
+        if score:
+            source_boosts[source_type] = score
+
+    fallback_source_types = tuple(
+        source_type
+        for source_type, _ in sorted(
+            source_boosts.items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+    )
+    return QueryIntent(
+        source_boosts=source_boosts,
+        fallback_source_types=fallback_source_types,
+    )
+
+
 def retrieve_citations(notebook_id: int, query: str, top_k: int = 5) -> list[Citation]:
     tokens = _tokenize(query)
+    intent = _detect_query_intent(query)
+    is_broad_context_query = _is_broad_context_query(query)
+    use_broad_ranking = (
+        is_broad_context_query
+        and not intent.fallback_source_types
+        and _is_document_availability_query(query)
+    )
     base_qs = DocumentChunk.objects.select_related('document').filter(
         document__notebook_id=notebook_id,
         document__status=DocumentStatus.COMPLETED,
     )
-    qs = base_qs
+    candidate_limit = max(top_k * 8, top_k)
 
+    chunks: list[DocumentChunk] = []
     if tokens:
         token_q = Q()
         for t in tokens:
             token_q |= Q(content__icontains=t)
-        qs = qs.filter(token_q)
+        chunks.extend(base_qs.filter(token_q).order_by('-id')[:candidate_limit])
+    if intent.fallback_source_types:
+        chunks.extend(
+            base_qs.filter(metadata__source_type__in=intent.fallback_source_types)
+            .order_by('-id')[:candidate_limit]
+        )
+    if use_broad_ranking:
+        chunks.extend(base_qs.order_by('-document__created_at', 'position')[:candidate_limit])
 
-    chunks = list(qs.order_by('-id')[: max(top_k * 3, top_k)]) if tokens else []
-    if not chunks and _is_broad_context_query(query):
+    chunks = _deduplicate_chunks(chunks)
+    if not chunks and is_broad_context_query:
         chunks = list(base_qs.order_by('-document__created_at', 'position')[:top_k])
 
     def score(chunk: DocumentChunk) -> int:
         text = (chunk.content or '').lower()
-        return sum(text.count(t) for t in tokens) if tokens else 0
+        source_type = (chunk.metadata or {}).get('source_type', 'text')
+        token_weight = 1 if use_broad_ranking else 4
+        token_score = sum(text.count(t) for t in tokens) * token_weight if tokens else 0
+        broad_score = _broad_context_score(chunk) if use_broad_ranking else 0
+        return token_score + intent.source_boosts.get(source_type, 0) + broad_score
 
-    chunks.sort(key=score, reverse=True)
+    chunks.sort(key=lambda chunk: (score(chunk), -chunk.id), reverse=True)
     chunks = chunks[:top_k]
 
     citations: list[Citation] = []
@@ -173,6 +311,22 @@ def retrieve_citations(notebook_id: int, query: str, top_k: int = 5) -> list[Cit
             )
         )
     return citations
+
+
+def _deduplicate_chunks(chunks: list[DocumentChunk]) -> list[DocumentChunk]:
+    seen: set[int] = set()
+    unique: list[DocumentChunk] = []
+    for chunk in chunks:
+        if chunk.id in seen:
+            continue
+        seen.add(chunk.id)
+        unique.append(chunk)
+    return unique
+
+
+def _broad_context_score(chunk: DocumentChunk) -> int:
+    position = chunk.position or 0
+    return max(0, 8 - min(position, 8))
 
 
 def build_prompt(
