@@ -1,6 +1,8 @@
 import base64
+import json
 import mimetypes
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +17,8 @@ VISION_PROVIDERS = {
     VISION_PROVIDER_OPENAI_COMPATIBLE,
     VISION_PROVIDER_ZHIPU,
 }
+VISION_TRANSIENT_ERROR_CODES = {'1305'}
+VISION_TRANSIENT_STATUS_CODES = {408, 409, 425, 429, 500, 502, 503, 504}
 
 
 def build_vision_blocks(document: Document) -> list[dict[str, Any]]:
@@ -60,12 +64,76 @@ def run_asset_vision(asset: DocumentAsset) -> dict[str, str]:
     return _call_vision_model(asset, image_path, api_key)
 
 
-def _call_vision_model(asset: DocumentAsset, image_path: Path, api_key: str) -> dict[str, str]:
+def _call_vision_model(asset: DocumentAsset, image_path: Path, api_key: str) -> dict[str, Any]:
     provider = _vision_provider()
     base_url = _vision_base_url(provider)
-    model = os.getenv('VISION_MODEL', 'gpt-4o-mini').strip() or 'gpt-4o-mini'
     timeout = float(os.getenv('VISION_TIMEOUT_SECONDS', '60'))
     prompt = os.getenv('VISION_PROMPT', _default_vision_prompt()).strip()
+    headers = {
+        'Authorization': f'Bearer {api_key}',
+        'Content-Type': 'application/json',
+    }
+    retry_attempts = _positive_int_env('VISION_RETRY_ATTEMPTS', 2)
+    retry_backoff = _positive_float_env('VISION_RETRY_BACKOFF_SECONDS', 1.0, allow_zero=True)
+    model_errors: list[dict[str, Any]] = []
+    last_result: dict[str, Any] | None = None
+
+    for model in _vision_model_candidates():
+        errors: list[str] = []
+        attempts_used = 0
+        for attempt in range(1, retry_attempts + 1):
+            attempts_used = attempt
+            result = _request_vision_completion(
+                provider=provider,
+                base_url=base_url,
+                model=model,
+                asset=asset,
+                image_path=image_path,
+                prompt=prompt,
+                headers=headers,
+                timeout=timeout,
+            )
+            last_result = result
+            if result['status'] == DocumentAsset.VisionStatus.SUCCESS:
+                return result
+            if result['status'] == DocumentAsset.VisionStatus.SKIPPED:
+                return result
+
+            errors.append(result.get('error') or '视觉模型调用失败')
+            if not result.get('retryable'):
+                break
+            if attempt < retry_attempts and retry_backoff > 0:
+                time.sleep(retry_backoff * attempt)
+
+        model_errors.append({
+            'model': model,
+            'errors': errors,
+            'attempts': attempts_used,
+        })
+        if not last_result or not last_result.get('retryable'):
+            break
+
+    fallback_error = _format_final_vision_error(model_errors)
+    return {
+        'status': DocumentAsset.VisionStatus.FAILED,
+        'text': '',
+        'error': fallback_error,
+        'model': last_result.get('model', '') if last_result else '',
+        'provider': provider,
+    }
+
+
+def _request_vision_completion(
+    *,
+    provider: str,
+    base_url: str,
+    model: str,
+    asset: DocumentAsset,
+    image_path: Path,
+    prompt: str,
+    headers: dict[str, str],
+    timeout: float,
+) -> dict[str, Any]:
     payload = _vision_payload(
         provider=provider,
         model=model,
@@ -73,10 +141,6 @@ def _call_vision_model(asset: DocumentAsset, image_path: Path, api_key: str) -> 
         image_path=image_path,
         prompt=prompt,
     )
-    headers = {
-        'Authorization': f'Bearer {api_key}',
-        'Content-Type': 'application/json',
-    }
 
     try:
         response = requests.post(
@@ -85,20 +149,45 @@ def _call_vision_model(asset: DocumentAsset, image_path: Path, api_key: str) -> 
             json=payload,
             timeout=timeout,
         )
+    except requests.Timeout:
+        return _vision_failure(
+            provider=provider,
+            model=model,
+            error='视觉模型请求超时，请稍后点击“重新解析”重试。',
+            retryable=True,
+        )
     except requests.RequestException as exc:
-        return {'status': DocumentAsset.VisionStatus.FAILED, 'text': '', 'error': str(exc)}
+        return _vision_failure(
+            provider=provider,
+            model=model,
+            error=f'视觉模型请求失败：{exc}',
+            retryable=True,
+        )
 
     if response.status_code >= 400:
-        return {
-            'status': DocumentAsset.VisionStatus.FAILED,
-            'text': '',
-            'error': response.text[:500] if response.text else f'HTTP {response.status_code}',
-        }
+        details = _response_error_details(response)
+        error = _format_vision_http_error(
+            provider=provider,
+            status_code=response.status_code,
+            error_code=details['code'],
+            message=details['message'],
+        )
+        return _vision_failure(
+            provider=provider,
+            model=model,
+            error=error,
+            retryable=_is_retryable_vision_error(response.status_code, details['code']),
+        )
 
     try:
         text = response.json()['choices'][0]['message']['content'].strip()
     except (KeyError, IndexError, TypeError, ValueError) as exc:
-        return {'status': DocumentAsset.VisionStatus.FAILED, 'text': '', 'error': str(exc)}
+        return _vision_failure(
+            provider=provider,
+            model=model,
+            error=f'视觉模型响应格式异常：{exc}',
+            retryable=False,
+        )
 
     if not text:
         return {'status': DocumentAsset.VisionStatus.SKIPPED, 'text': '', 'error': 'No vision text generated'}
@@ -110,6 +199,133 @@ def _call_vision_model(asset: DocumentAsset, image_path: Path, api_key: str) -> 
         'model': model,
         'provider': provider,
     }
+
+
+def _vision_failure(
+    *,
+    provider: str,
+    model: str,
+    error: str,
+    retryable: bool,
+) -> dict[str, Any]:
+    return {
+        'status': DocumentAsset.VisionStatus.FAILED,
+        'text': '',
+        'error': error,
+        'model': model,
+        'provider': provider,
+        'retryable': retryable,
+    }
+
+
+def _vision_model_candidates() -> list[str]:
+    primary = os.getenv('VISION_MODEL', 'gpt-4o-mini').strip() or 'gpt-4o-mini'
+    models = [primary, *_comma_separated_env('VISION_FALLBACK_MODELS')]
+    candidates: list[str] = []
+    for model in models:
+        if model and model not in candidates:
+            candidates.append(model)
+    return candidates
+
+
+def _comma_separated_env(name: str) -> list[str]:
+    return [
+        item.strip()
+        for item in os.getenv(name, '').split(',')
+        if item.strip()
+    ]
+
+
+def _positive_int_env(name: str, default: int) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+    return max(1, value)
+
+
+def _positive_float_env(name: str, default: float, *, allow_zero: bool = False) -> float:
+    try:
+        value = float(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+    minimum = 0.0 if allow_zero else 0.1
+    return max(minimum, value)
+
+
+def _response_error_details(response: requests.Response) -> dict[str, str]:
+    payload: Any = None
+    try:
+        payload = response.json()
+    except ValueError:
+        if response.text:
+            try:
+                payload = json.loads(response.text)
+            except ValueError:
+                payload = None
+
+    if isinstance(payload, dict):
+        error = payload.get('error')
+        if isinstance(error, dict):
+            return {
+                'code': str(error.get('code') or ''),
+                'message': str(error.get('message') or response.text or ''),
+            }
+        return {
+            'code': str(payload.get('code') or ''),
+            'message': str(payload.get('message') or response.text or ''),
+        }
+
+    return {'code': '', 'message': response.text or ''}
+
+
+def _format_vision_http_error(
+    *,
+    provider: str,
+    status_code: int,
+    error_code: str,
+    message: str,
+) -> str:
+    service = '智谱' if provider == VISION_PROVIDER_ZHIPU else '视觉服务'
+    clean_message = _compact_error_text(message)
+    if status_code in {401, 403}:
+        return f'{service}鉴权失败，请检查 VISION_API_KEY、模型权限或账户额度。'
+    if error_code in VISION_TRANSIENT_ERROR_CODES:
+        return f'{service}返回错误 {error_code}：{clean_message or "模型当前暂时繁忙"}，请稍后点击“重新解析”重试。'
+    if status_code == 429:
+        return f'{service}请求过于频繁或额度受限，请稍后点击“重新解析”重试。'
+    if status_code >= 500:
+        return f'{service}服务暂时不可用（HTTP {status_code}），请稍后点击“重新解析”重试。'
+
+    code_part = f'，错误 {error_code}' if error_code else ''
+    message_part = f'：{clean_message}' if clean_message else ''
+    return f'{service}请求失败（HTTP {status_code}{code_part}）{message_part}'
+
+
+def _compact_error_text(text: str) -> str:
+    return ' '.join(text.split())[:300]
+
+
+def _is_retryable_vision_error(status_code: int, error_code: str) -> bool:
+    return status_code in VISION_TRANSIENT_STATUS_CODES or error_code in VISION_TRANSIENT_ERROR_CODES
+
+
+def _format_final_vision_error(model_errors: list[dict[str, Any]]) -> str:
+    summaries = []
+    for item in model_errors:
+        errors = item['errors']
+        if not errors:
+            continue
+        latest_error = errors[-1]
+        attempts = item['attempts']
+        attempt_text = f'（已尝试 {attempts} 次）' if attempts > 1 else ''
+        summaries.append(f"{item['model']}: {latest_error}{attempt_text}")
+
+    if not summaries:
+        return '视觉模型调用失败，请稍后点击“重新解析”重试。'
+    if len(summaries) == 1:
+        return summaries[0]
+    return f'视觉模型均不可用：{"；".join(summaries)}'
 
 
 def _vision_provider() -> str:

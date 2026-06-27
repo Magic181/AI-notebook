@@ -401,6 +401,90 @@ class VisionProviderTests(TestCase):
         self.assertEqual(base64.b64decode(image_url), TINY_PNG)
         self.assertEqual(payload['thinking'], {'type': 'disabled'})
 
+    @patch.dict('os.environ', {
+        'VISION_PROVIDER': 'zhipu',
+        'VISION_MODEL': 'glm-4.6v-flash',
+        'VISION_RETRY_ATTEMPTS': '2',
+        'VISION_RETRY_BACKOFF_SECONDS': '0',
+    }, clear=True)
+    @patch('apps.documents.vision.requests.post')
+    def test_retryable_zhipu_error_retries_with_friendly_message(self, post):
+        post.return_value = FakeResponse(
+            status_code=429,
+            payload={'error': {'code': '1305', 'message': '该模型当前访问量过大，请您稍后再试'}},
+            text='{"error":{"code":"1305","message":"该模型当前访问量过大，请您稍后再试"}}',
+        )
+        with TemporaryDirectory() as temp_dir:
+            image_path = Path(temp_dir) / 'image.png'
+            image_path.write_bytes(TINY_PNG)
+            asset = DocumentAsset(original_name='image.png')
+
+            result = _call_vision_model(asset, image_path, 'test-key')
+
+        self.assertEqual(result['status'], DocumentAsset.VisionStatus.FAILED)
+        self.assertEqual(post.call_count, 2)
+        self.assertIn('glm-4.6v-flash', result['error'])
+        self.assertIn('智谱返回错误 1305', result['error'])
+        self.assertIn('重新解析', result['error'])
+        self.assertIn('已尝试 2 次', result['error'])
+
+    @patch.dict('os.environ', {
+        'VISION_PROVIDER': 'zhipu',
+        'VISION_MODEL': 'glm-4.6v-flash',
+        'VISION_FALLBACK_MODELS': 'glm-backup-vision',
+        'VISION_RETRY_ATTEMPTS': '1',
+    }, clear=True)
+    @patch('apps.documents.vision.requests.post')
+    def test_retryable_error_uses_fallback_model(self, post):
+        post.side_effect = [
+            FakeResponse(
+                status_code=429,
+                payload={'error': {'code': '1305', 'message': '该模型当前访问量过大，请您稍后再试'}},
+            ),
+            FakeResponse(payload={
+                'choices': [
+                    {'message': {'content': '备用模型描述'}}
+                ]
+            }),
+        ]
+        with TemporaryDirectory() as temp_dir:
+            image_path = Path(temp_dir) / 'image.png'
+            image_path.write_bytes(TINY_PNG)
+            asset = DocumentAsset(original_name='image.png')
+
+            result = _call_vision_model(asset, image_path, 'test-key')
+
+        self.assertEqual(result['status'], DocumentAsset.VisionStatus.SUCCESS)
+        self.assertEqual(result['model'], 'glm-backup-vision')
+        self.assertEqual(post.call_count, 2)
+        sent_models = [call.kwargs['json']['model'] for call in post.call_args_list]
+        self.assertEqual(sent_models, ['glm-4.6v-flash', 'glm-backup-vision'])
+
+    @patch.dict('os.environ', {
+        'VISION_PROVIDER': 'zhipu',
+        'VISION_MODEL': 'glm-4.6v-flash',
+        'VISION_FALLBACK_MODELS': 'glm-backup-vision',
+        'VISION_RETRY_ATTEMPTS': '3',
+        'VISION_RETRY_BACKOFF_SECONDS': '0',
+    }, clear=True)
+    @patch('apps.documents.vision.requests.post')
+    def test_non_retryable_auth_error_does_not_retry_or_fallback(self, post):
+        post.return_value = FakeResponse(
+            status_code=401,
+            payload={'error': {'code': '401', 'message': 'invalid api key'}},
+        )
+        with TemporaryDirectory() as temp_dir:
+            image_path = Path(temp_dir) / 'image.png'
+            image_path.write_bytes(TINY_PNG)
+            asset = DocumentAsset(original_name='image.png')
+
+            result = _call_vision_model(asset, image_path, 'test-key')
+
+        self.assertEqual(result['status'], DocumentAsset.VisionStatus.FAILED)
+        self.assertEqual(post.call_count, 1)
+        self.assertIn('鉴权失败', result['error'])
+        self.assertNotIn('invalid api key', result['error'])
+
 
 class ParseDocumentTaskTests(TransactionTestCase):
     def setUp(self):
