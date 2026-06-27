@@ -17,11 +17,22 @@ from .models import Document, DocumentAsset, DocumentChunk, DocumentStatus
 from .parsers import _docx_heading_level, parse_file, parse_file_blocks
 from .serializers import DocumentSerializer
 from .tasks import parse_document_task
+from .vision import _call_vision_model
 
 
 TINY_PNG = base64.b64decode(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='
 )
+
+
+class FakeResponse:
+    def __init__(self, status_code=200, payload=None, text=''):
+        self.status_code = status_code
+        self._payload = payload or {}
+        self.text = text
+
+    def json(self):
+        return self._payload
 
 
 class DocumentUploadTests(TransactionTestCase):
@@ -287,6 +298,72 @@ class DocxParsingTests(TestCase):
         table.cell(1, 1).text = '通过'
         doc.add_paragraph('实验结论：表格内容已被读取。')
         doc.save(path)
+
+
+class VisionProviderTests(TestCase):
+    @patch.dict('os.environ', {
+        'VISION_PROVIDER': 'openai_compatible',
+        'VISION_BASE_URL': 'https://vision.example/v1',
+        'VISION_MODEL': 'test-vlm',
+        'VISION_TIMEOUT_SECONDS': '10',
+    }, clear=True)
+    @patch('apps.documents.vision.requests.post')
+    def test_openai_compatible_provider_sends_data_url(self, post):
+        post.return_value = FakeResponse(payload={
+            'choices': [
+                {'message': {'content': '图片描述'}}
+            ]
+        })
+        with TemporaryDirectory() as temp_dir:
+            image_path = Path(temp_dir) / 'image.png'
+            image_path.write_bytes(TINY_PNG)
+            asset = DocumentAsset(
+                original_name='image.png',
+                nearby_text='附近说明',
+            )
+
+            result = _call_vision_model(asset, image_path, 'test-key')
+
+        self.assertEqual(result['status'], DocumentAsset.VisionStatus.SUCCESS)
+        self.assertEqual(result['provider'], 'openai_compatible')
+        post.assert_called_once()
+        url = post.call_args.args[0]
+        payload = post.call_args.kwargs['json']
+        self.assertEqual(url, 'https://vision.example/v1/chat/completions')
+        image_url = payload['messages'][0]['content'][1]['image_url']['url']
+        self.assertTrue(image_url.startswith('data:image/png;base64,'))
+        self.assertNotIn('thinking', payload)
+
+    @patch.dict('os.environ', {
+        'VISION_PROVIDER': 'zhipu',
+        'VISION_MODEL': 'glm-4.6v-flash',
+        'VISION_TIMEOUT_SECONDS': '10',
+        'VISION_THINKING': 'disabled',
+    }, clear=True)
+    @patch('apps.documents.vision.requests.post')
+    def test_zhipu_provider_sends_raw_base64_and_thinking(self, post):
+        post.return_value = FakeResponse(payload={
+            'choices': [
+                {'message': {'content': '智谱图片描述'}}
+            ]
+        })
+        with TemporaryDirectory() as temp_dir:
+            image_path = Path(temp_dir) / 'image.png'
+            image_path.write_bytes(TINY_PNG)
+            asset = DocumentAsset(original_name='image.png')
+
+            result = _call_vision_model(asset, image_path, 'test-key')
+
+        self.assertEqual(result['status'], DocumentAsset.VisionStatus.SUCCESS)
+        self.assertEqual(result['provider'], 'zhipu')
+        post.assert_called_once()
+        url = post.call_args.args[0]
+        payload = post.call_args.kwargs['json']
+        image_url = payload['messages'][0]['content'][1]['image_url']['url']
+        self.assertEqual(url, 'https://open.bigmodel.cn/api/paas/v4/chat/completions')
+        self.assertFalse(image_url.startswith('data:'))
+        self.assertEqual(base64.b64decode(image_url), TINY_PNG)
+        self.assertEqual(payload['thinking'], {'type': 'disabled'})
 
 
 class ParseDocumentTaskTests(TransactionTestCase):
