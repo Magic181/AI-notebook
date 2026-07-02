@@ -142,6 +142,7 @@
         v-model="input"
         v-model:web-search-enabled="webSearchEnabled"
         :sending="sending"
+        :send-failed="sendFailed"
         :active-conversation-id="activeConversationId"
         @send="sendMessage"
       />
@@ -213,6 +214,7 @@ const searchMode = computed<SearchMode>(() => (webSearchEnabled.value ? 'hybrid'
 const {
   sending,
   streamingAssistantId,
+  sendFailed,
   sendMessage,
 } = useChatStreaming({
   activeConversationId,

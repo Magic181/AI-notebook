@@ -16,7 +16,7 @@
         </div>
       </div>
       <form
-        class="flex items-center gap-2 px-4 pb-3 pt-2"
+        class="flex items-center gap-2 px-4 pt-2"
         @submit.prevent="emit('send')"
       >
         <input
@@ -38,6 +38,21 @@
           </svg>
         </button>
       </form>
+      <div
+        v-if="sendFailed"
+        class="flex items-center justify-between gap-3 px-4 pb-3 pt-1"
+      >
+        <p class="text-xs font-medium text-danger">发送失败</p>
+        <button
+          type="button"
+          class="composer-retry-btn"
+          :disabled="sending || !modelValue.trim() || !activeConversationId"
+          @click="emit('send')"
+        >
+          重试
+        </button>
+      </div>
+      <div v-else class="pb-3" />
     </div>
   </div>
 </template>
@@ -47,6 +62,7 @@ defineProps<{
   modelValue: string
   webSearchEnabled: boolean
   sending: boolean
+  sendFailed: boolean
   activeConversationId: number | null
 }>()
 
@@ -130,6 +146,36 @@ const emit = defineEmits<{
   background: #e8f7f0;
   color: #047857;
   box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.08);
+}
+
+.composer-retry-btn {
+  display: inline-flex;
+  min-height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  padding: 0.25rem 0.7rem;
+  color: #b3261e;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  transition:
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.composer-retry-btn:hover:not(:disabled) {
+  background: rgba(179, 38, 30, 0.08);
+}
+
+.composer-retry-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(179, 38, 30, 0.14);
+}
+
+.composer-retry-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 :global(.dark) .chat-composer {

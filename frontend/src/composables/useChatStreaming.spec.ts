@@ -125,6 +125,7 @@ describe('useChatStreaming', () => {
     expect(chatApi.sendMessage).toHaveBeenCalledWith(10, 'Question', 'local')
     expect(harness.messages.value).toEqual([userMessage, assistantMessage])
     expect(harness.input.value).toBe('')
+    expect(harness.streaming.sendFailed.value).toBe(false)
     expect(harness.loadMessages).not.toHaveBeenCalled()
   })
 
@@ -137,6 +138,7 @@ describe('useChatStreaming', () => {
 
     expect(harness.input.value).toBe('Question')
     expect(harness.messages.value).toEqual([])
+    expect(harness.streaming.sendFailed.value).toBe(true)
   })
 
   it('reloads messages when stream fails after user message arrives', async () => {
@@ -151,6 +153,7 @@ describe('useChatStreaming', () => {
 
     expect(harness.messages.value).toEqual([userMessage])
     expect(harness.loadMessages).toHaveBeenCalledOnce()
+    expect(harness.streaming.sendFailed.value).toBe(false)
     expect(chatApi.sendMessage).not.toHaveBeenCalled()
   })
 

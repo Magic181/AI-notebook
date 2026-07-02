@@ -22,6 +22,7 @@ export function useChatStreaming({
 }: UseChatStreamingOptions) {
   const sending = ref(false)
   const streamingAssistantId = ref<number | null>(null)
+  const sendFailed = ref(false)
 
   function appendMessage(message: Message) {
     if (messages.value.some((item) => item.id === message.id)) return
@@ -76,6 +77,7 @@ export function useChatStreaming({
     input.value = ''
     sending.value = true
     streamingAssistantId.value = null
+    sendFailed.value = false
     let receivedUserMessage = false
     await scrollMessagesToBottom('smooth')
     try {
@@ -126,12 +128,14 @@ export function useChatStreaming({
       await scrollMessagesToBottom('smooth')
     } catch {
       input.value = content
+      sendFailed.value = true
     }
   }
 
   return {
     sending,
     streamingAssistantId,
+    sendFailed,
     sendMessage,
     appendMessage,
     appendAssistantDelta,

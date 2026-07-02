@@ -8,6 +8,7 @@ function mountComposer(overrides = {}) {
       modelValue: 'Question',
       webSearchEnabled: false,
       sending: false,
+      sendFailed: false,
       activeConversationId: 10,
       ...overrides,
     },
@@ -33,5 +34,14 @@ describe('ChatComposer', () => {
 
     expect(blank.find('button[type="submit"]').attributes('disabled')).toBeDefined()
     expect(unavailable.find('button[type="submit"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('renders send failure state and emits send from retry button', async () => {
+    const wrapper = mountComposer({ sendFailed: true })
+
+    expect(wrapper.text()).toContain('发送失败')
+    await wrapper.find('.composer-retry-btn').trigger('click')
+
+    expect(wrapper.emitted('send')).toHaveLength(1)
   })
 })
