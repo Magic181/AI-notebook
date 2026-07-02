@@ -288,6 +288,7 @@ import CitationList from '@/components/chat/CitationList.vue'
 import ConversationJumpNav from '@/components/chat/ConversationJumpNav.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
+import { useChatStreaming } from '@/composables/useChatStreaming'
 import { useNotebookStore } from '@/stores/notebook'
 import { markdownToHtml } from '@/utils/markdown'
 
@@ -309,15 +310,26 @@ const loadingMessages = ref(false)
 const creatingConversation = ref(false)
 const deletingConversation = ref(false)
 const renamingConversation = ref(false)
-const sending = ref(false)
 const initLoading = ref(false)
 const initError = ref(false)
-const streamingAssistantId = ref<number | null>(null)
 const activeJumpMessageId = ref<number | null>(null)
 const messageElements = new Map<number, HTMLElement>()
 let jumpScrollFrame = 0
 
 const searchMode = computed<SearchMode>(() => (webSearchEnabled.value ? 'hybrid' : 'local'))
+
+const {
+  sending,
+  streamingAssistantId,
+  sendMessage,
+} = useChatStreaming({
+  activeConversationId,
+  input,
+  messages,
+  searchMode,
+  loadMessages,
+  scrollMessagesToBottom,
+})
 
 const headerHint = computed(() => {
   if (!activeConversationId.value) return '正在初始化会话...'
@@ -533,112 +545,6 @@ async function loadMessages() {
     await scrollMessagesToBottom()
   } finally {
     loadingMessages.value = false
-  }
-}
-
-async function sendMessage() {
-  if (!input.value.trim() || !activeConversationId.value) return
-  const content = input.value.trim()
-  const conversationId = activeConversationId.value
-  input.value = ''
-  sending.value = true
-  streamingAssistantId.value = null
-  let receivedUserMessage = false
-  await scrollMessagesToBottom('smooth')
-  try {
-    await chatApi.sendMessageStream(
-      conversationId,
-      content,
-      searchMode.value,
-      {
-        onUserMessage: (message) => {
-          receivedUserMessage = true
-          appendMessage(message)
-          void scrollMessagesToBottom('smooth')
-        },
-        onDelta: (delta) => {
-          appendAssistantDelta(conversationId, delta)
-          void scrollMessagesToBottom('smooth')
-        },
-        onAssistantMessage: (message) => {
-          replaceStreamingAssistant(message)
-          void scrollMessagesToBottom('smooth')
-        },
-      },
-    )
-  } catch {
-    if (!receivedUserMessage) {
-      await sendMessageWithoutStreaming(conversationId, content)
-    } else {
-      await loadMessages()
-    }
-  } finally {
-    streamingAssistantId.value = null
-    sending.value = false
-  }
-}
-
-function appendMessage(message: Message) {
-  if (messages.value.some((item) => item.id === message.id)) return
-  messages.value = [...messages.value, message]
-}
-
-function appendAssistantDelta(conversationId: number, delta: string) {
-  if (!delta) return
-
-  const existingId = streamingAssistantId.value
-  if (!existingId) {
-    const nextId = -Date.now()
-    streamingAssistantId.value = nextId
-    messages.value = [
-      ...messages.value,
-      {
-        id: nextId,
-        conversation_id: conversationId,
-        role: 'assistant',
-        content: '',
-        citations: [],
-        created_at: new Date().toISOString(),
-      },
-    ]
-  }
-
-  messages.value = messages.value.map((message) => {
-    if (message.id !== streamingAssistantId.value) return message
-    return {
-      ...message,
-      content: `${message.content}${delta}`,
-    }
-  })
-}
-
-function replaceStreamingAssistant(message: Message) {
-  const existingId = streamingAssistantId.value
-  if (!existingId) {
-    appendMessage(message)
-    return
-  }
-
-  messages.value = messages.value.map((item) => (
-    item.id === existingId ? message : item
-  ))
-}
-
-async function sendMessageWithoutStreaming(
-  conversationId: number,
-  content: string,
-) {
-  try {
-    const { data } = await chatApi.sendMessage(
-      conversationId,
-      content,
-      searchMode.value,
-    )
-    appendMessage(data.user_message)
-    appendMessage(data.assistant_message)
-    await scrollMessagesToBottom('smooth')
-  } catch {
-    input.value = content
   }
 }
 
