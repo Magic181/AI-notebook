@@ -97,13 +97,32 @@ describe('MessageList', () => {
     expect(wrapper.find('[aria-label="已复制问题"]').exists()).toBe(true)
   })
 
-  it('emits user message content for editing', async () => {
+  it('edits user message content in place before emitting it', async () => {
     const wrapper = mountList({
       messages: [makeMessage({ role: 'user', content: '  Question text  ' })],
     })
 
     await wrapper.find('[aria-label="修改问题"]').trigger('click')
+    const textarea = wrapper.find<HTMLTextAreaElement>('[aria-label="修改问题内容"]')
 
-    expect(wrapper.emitted('edit')?.[0]).toEqual(['Question text'])
+    expect(textarea.exists()).toBe(true)
+
+    await textarea.setValue('  Revised question  ')
+    await wrapper.find('form.user-edit-bubble').trigger('submit')
+
+    expect(wrapper.emitted('edit')?.[0]).toEqual(['Revised question'])
+    expect(wrapper.find('[aria-label="修改问题内容"]').exists()).toBe(false)
+  })
+
+  it('cancels user message editing in place', async () => {
+    const wrapper = mountList({
+      messages: [makeMessage({ role: 'user', content: 'Question text' })],
+    })
+
+    await wrapper.find('[aria-label="修改问题"]').trigger('click')
+    await wrapper.find('[aria-label="取消修改"]').trigger('click')
+
+    expect(wrapper.find('[aria-label="修改问题内容"]').exists()).toBe(false)
+    expect(wrapper.emitted('edit')).toBeUndefined()
   })
 })

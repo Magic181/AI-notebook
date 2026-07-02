@@ -43,8 +43,49 @@
         class="min-w-0"
         :class="msg.role === 'user' ? 'max-w-[80%]' : 'max-w-[min(880px,calc(100%-44px))]'"
       >
+        <form
+          v-if="msg.role === 'user' && editingMessageId === msg.id"
+          class="user-edit-bubble rounded-2xl px-4 py-3 shadow-gsm"
+          @submit.prevent="submitMessageEdit"
+        >
+          <textarea
+            ref="editTextareaRef"
+            v-model="editingContent"
+            class="user-edit-textarea"
+            rows="2"
+            aria-label="修改问题内容"
+            @keydown.esc.prevent="cancelMessageEdit"
+            @keydown.enter.ctrl.prevent="submitMessageEdit"
+            @keydown.enter.meta.prevent="submitMessageEdit"
+          />
+          <div class="mt-2 flex justify-end gap-1">
+            <button
+              type="button"
+              class="user-edit-action-btn"
+              aria-label="取消修改"
+              title="取消修改"
+              @click="cancelMessageEdit"
+            >
+              <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+            </button>
+            <button
+              type="submit"
+              class="user-edit-action-btn user-edit-action-btn-primary"
+              aria-label="提交修改"
+              title="提交修改"
+              :disabled="!editingContent.trim() || sending"
+            >
+              <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+            </button>
+          </div>
+        </form>
         <div
-          v-if="msg.role === 'user'"
+          v-else-if="msg.role === 'user'"
           class="whitespace-pre-wrap break-words rounded-2xl bg-primary px-4 py-3 text-sm leading-7 text-primary-contrast shadow-gsm"
         >
           {{ msg.content }}
@@ -67,6 +108,7 @@
           :citations="msg.citations || []"
         />
         <div
+          v-if="editingMessageId !== msg.id"
           class="message-action-row"
           :class="msg.role === 'user' ? 'justify-end pr-1' : 'justify-start pl-1'"
         >
@@ -111,7 +153,8 @@
             class="message-action-btn"
             aria-label="修改问题"
             title="修改问题"
-            @click="editMessageContent(msg)"
+            :disabled="sending"
+            @click="startMessageEdit(msg)"
           >
             <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M12 20h9" />
@@ -139,12 +182,12 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
+import { nextTick, onBeforeUnmount, ref } from 'vue'
 import type { Message } from '@/api/chat'
 import CitationList from '@/components/chat/CitationList.vue'
 import { markdownToHtml } from '@/utils/markdown'
 
-defineProps<{
+const props = defineProps<{
   messages: Message[]
   loading: boolean
   emptyStateHint: string
@@ -159,6 +202,9 @@ const emit = defineEmits<{
 }>()
 
 const copiedMessageId = ref<number | null>(null)
+const editingMessageId = ref<number | null>(null)
+const editingContent = ref('')
+const editTextareaRef = ref<HTMLTextAreaElement | null>(null)
 let copyResetTimer: ReturnType<typeof window.setTimeout> | null = null
 
 onBeforeUnmount(() => {
@@ -166,6 +212,16 @@ onBeforeUnmount(() => {
     window.clearTimeout(copyResetTimer)
   }
 })
+
+async function focusEditTextarea() {
+  await nextTick()
+  const textarea = Array.isArray(editTextareaRef.value)
+    ? editTextareaRef.value[0]
+    : editTextareaRef.value
+  if (!(textarea instanceof HTMLTextAreaElement)) return
+  textarea.focus()
+  textarea.setSelectionRange(textarea.value.length, textarea.value.length)
+}
 
 function handleActionItemClick(event: Event) {
   const target = event.target as HTMLElement | null
@@ -202,9 +258,23 @@ async function copyMessageContent(message: Message) {
   }
 }
 
-function editMessageContent(message: Message) {
+function startMessageEdit(message: Message) {
   const content = message.content.trim()
   if (!content) return
+  editingMessageId.value = message.id
+  editingContent.value = content
+  void focusEditTextarea()
+}
+
+function cancelMessageEdit() {
+  editingMessageId.value = null
+  editingContent.value = ''
+}
+
+function submitMessageEdit() {
+  const content = editingContent.value.trim()
+  if (!content || !editingMessageId.value || props.sending) return
+  cancelMessageEdit()
   emit('edit', content)
 }
 
@@ -246,6 +316,68 @@ async function copyText(content: string) {
   color: var(--ai-accent);
   background: var(--ai-accent-soft);
   box-shadow: inset 0 0 0 1px rgba(124, 111, 240, 0.16);
+}
+
+.user-edit-bubble {
+  border: 1px solid rgba(16, 185, 129, 0.32);
+  background: var(--bg-elevated);
+  box-shadow:
+    0 0 0 3px rgba(16, 185, 129, 0.08),
+    0 14px 32px -24px rgba(0, 0, 0, 0.26);
+}
+
+.user-edit-textarea {
+  display: block;
+  width: min(34rem, 72vw);
+  min-width: min(18rem, 72vw);
+  min-height: 5.5rem;
+  resize: vertical;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.75;
+  outline: none;
+}
+
+.user-edit-action-btn {
+  display: inline-flex;
+  height: 1.75rem;
+  width: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: var(--text-secondary);
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease,
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.user-edit-action-btn:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--bg-secondary);
+}
+
+.user-edit-action-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.user-edit-action-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.16);
+}
+
+.user-edit-action-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.user-edit-action-btn-primary {
+  color: var(--primary);
+  background: var(--primary-soft);
 }
 
 .message-action-row {

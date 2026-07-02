@@ -337,8 +337,9 @@ function handleActionItem(action: string) {
   input.value = action
 }
 
-function handleEditMessage(content: string) {
+async function handleEditMessage(content: string) {
   input.value = content
+  await sendMessage()
 }
 
 async function loadConversations() {
