@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from requests import exceptions as request_exceptions
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -431,6 +431,55 @@ class ConversationSendMessageTests(TestCase):
 
         prepare_assistant_context.assert_called_once()
         stream_deepseek_chat.assert_called_once_with([{'role': 'user', 'content': 'hi'}])
+
+
+class ConversationListResponseMetadataTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
+            username='list-user',
+            email='list@example.com',
+            password='test-password',
+        )
+        self.notebook = Notebook.objects.create(user=self.user, name='List notebook')
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    @override_settings(MAX_LIST_RESULTS=2)
+    def test_conversation_list_exposes_limit_metadata_without_changing_body_shape(self):
+        for index in range(3):
+            Conversation.objects.create(
+                notebook=self.notebook,
+                title=f'Conversation {index}',
+            )
+
+        response = self.client.get(f'/api/v1/notebooks/{self.notebook.id}/conversations/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsInstance(response.data, list)
+        self.assertEqual(len(response.data), 2)
+        self.assertEqual(response['X-List-Limit'], '2')
+        self.assertEqual(response['X-List-Total'], '3')
+        self.assertEqual(response['X-List-Truncated'], 'true')
+
+    @override_settings(MAX_LIST_RESULTS=2)
+    def test_message_list_exposes_total_and_keeps_recent_messages(self):
+        conversation = Conversation.objects.create(notebook=self.notebook, title='Messages')
+        for index in range(3):
+            Message.objects.create(
+                conversation=conversation,
+                role=MessageRole.USER,
+                content=f'message {index}',
+                citations=[],
+            )
+
+        response = self.client.get(f'/api/v1/conversations/{conversation.id}/messages/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([item['content'] for item in response.data], ['message 1', 'message 2'])
+        self.assertEqual(response['X-List-Limit'], '2')
+        self.assertEqual(response['X-List-Total'], '3')
+        self.assertEqual(response['X-List-Truncated'], 'true')
 
 
 class ConversationDeleteTests(TestCase):

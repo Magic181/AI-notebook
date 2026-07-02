@@ -1,7 +1,11 @@
 from django.contrib.auth import get_user_model
+from django.core.checks import Error, Warning
 from django.test import TestCase
+from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
+
+from .checks import production_settings_check
 
 User = get_user_model()
 
@@ -90,3 +94,29 @@ class ApiExceptionHandlerTests(TestCase):
         body = response.json()
         self.assertEqual(body['code'], status.HTTP_404_NOT_FOUND)
         self.assertIsNone(body['data'])
+
+
+class ProductionSettingsCheckTests(TestCase):
+    @override_settings(
+        DEBUG=False,
+        SECRET_KEY='dev-insecure-key',
+        ALLOWED_HOSTS=['localhost', '127.0.0.1'],
+        CORS_ALLOWED_ORIGINS=['http://localhost:5173'],
+    )
+    def test_production_check_flags_default_dev_settings(self):
+        issues = production_settings_check(None)
+
+        self.assertIn('core.E001', [issue.id for issue in issues if isinstance(issue, Error)])
+        self.assertIn('core.E002', [issue.id for issue in issues if isinstance(issue, Error)])
+        self.assertIn('core.W001', [issue.id for issue in issues if isinstance(issue, Warning)])
+
+    @override_settings(
+        DEBUG=False,
+        SECRET_KEY='prod-secret-key',
+        ALLOWED_HOSTS=['app.example.com'],
+        CORS_ALLOWED_ORIGINS=['https://app.example.com'],
+    )
+    def test_production_check_accepts_explicit_prod_settings(self):
+        issues = production_settings_check(None)
+
+        self.assertEqual(issues, [])

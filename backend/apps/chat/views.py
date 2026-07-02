@@ -10,6 +10,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.listing import limited_list_response
 from apps.core.throttling import ChatSendRateThrottle
 from apps.notebooks.models import Notebook
 
@@ -53,8 +54,13 @@ class NotebookConversationListCreateView(APIView):
 
     def get(self, request, notebook_pk: int):
         notebook = get_user_notebook(request.user, notebook_pk)
-        conversations = notebook.conversations.all()[:settings.MAX_LIST_RESULTS]
-        return Response(ConversationSerializer(conversations, many=True).data)
+        queryset = notebook.conversations.all()
+        total = queryset.count()
+        conversations = queryset[:settings.MAX_LIST_RESULTS]
+        return limited_list_response(
+            ConversationSerializer(conversations, many=True).data,
+            total=total,
+        )
 
     def post(self, request, notebook_pk: int):
         notebook = get_user_notebook(request.user, notebook_pk)
@@ -72,9 +78,14 @@ class ConversationMessageListView(APIView):
         conv = get_user_conversation(request.user, conversation_pk)
         # Messages default-order oldest-first; cap by keeping the most recent
         # MAX_LIST_RESULTS, then restore chronological order for the response.
-        messages = list(conv.messages.order_by('-created_at')[:settings.MAX_LIST_RESULTS])
+        queryset = conv.messages.all()
+        total = queryset.count()
+        messages = list(queryset.order_by('-created_at')[:settings.MAX_LIST_RESULTS])
         messages.reverse()
-        return Response(MessageSerializer(messages, many=True).data)
+        return limited_list_response(
+            MessageSerializer(messages, many=True).data,
+            total=total,
+        )
 
 
 class ConversationDetailView(APIView):

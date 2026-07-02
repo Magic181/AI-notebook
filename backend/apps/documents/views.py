@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.listing import limited_list_response
 from apps.notebooks.models import Notebook
 
 from .models import Document, DocumentStatus
@@ -95,8 +96,13 @@ class NotebookDocumentListCreateView(APIView):
 
     def get(self, request, notebook_pk: int):
         notebook = get_user_notebook(request.user, notebook_pk)
-        documents = notebook.documents.prefetch_related('assets', 'chunks').all()[:settings.MAX_LIST_RESULTS]
-        return Response(DocumentSerializer(documents, many=True).data)
+        queryset = notebook.documents.prefetch_related('assets', 'chunks').all()
+        total = queryset.count()
+        documents = queryset[:settings.MAX_LIST_RESULTS]
+        return limited_list_response(
+            DocumentSerializer(documents, many=True).data,
+            total=total,
+        )
 
     def post(self, request, notebook_pk: int):
         notebook = get_user_notebook(request.user, notebook_pk)

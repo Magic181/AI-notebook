@@ -131,6 +131,42 @@ class DocumentUploadTests(TransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         enqueue_parse_task.assert_not_called()
 
+    @override_settings(MAX_LIST_RESULTS=2)
+    def test_document_list_exposes_limit_metadata_without_changing_body_shape(self):
+        for index in range(3):
+            Document.objects.create(
+                notebook=self.notebook,
+                name=f'doc-{index}.txt',
+                file_path=f'files/doc-{index}.txt',
+                file_type='txt',
+                status=DocumentStatus.COMPLETED,
+            )
+
+        response = self.client.get(f'/api/v1/notebooks/{self.notebook.id}/documents/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsInstance(response.data, list)
+        self.assertEqual(len(response.data), 2)
+        self.assertEqual(response['X-List-Limit'], '2')
+        self.assertEqual(response['X-List-Total'], '3')
+        self.assertEqual(response['X-List-Truncated'], 'true')
+
+    @override_settings(MAX_LIST_RESULTS=10)
+    def test_document_list_marks_untruncated_response(self):
+        Document.objects.create(
+            notebook=self.notebook,
+            name='doc.txt',
+            file_path='files/doc.txt',
+            file_type='txt',
+            status=DocumentStatus.COMPLETED,
+        )
+
+        response = self.client.get(f'/api/v1/notebooks/{self.notebook.id}/documents/')
+
+        self.assertEqual(response['X-List-Limit'], '10')
+        self.assertEqual(response['X-List-Total'], '1')
+        self.assertEqual(response['X-List-Truncated'], 'false')
+
     @patch('apps.documents.views.logger')
     @patch('apps.documents.views.delete_file', side_effect=OSError('file is locked'))
     def test_delete_document_removes_database_record_when_file_cleanup_fails(
