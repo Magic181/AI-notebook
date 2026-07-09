@@ -1,8 +1,8 @@
 <template>
   <div class="flex min-h-screen items-center justify-center bg-surface-secondary px-4">
     <div class="gemini-rise w-full max-w-md rounded-2xl border border-line bg-surface-elevated p-8 shadow-gmd">
-      <div class="mx-auto mb-6 flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft text-sm font-bold text-primary">
-        AI
+      <div class="mb-6 flex justify-center">
+        <StarterLogo title="AI Notebook Kit" subtitle="Starter Demo" />
       </div>
       <h1 class="text-center text-xl font-semibold tracking-tight text-content">欢迎回来</h1>
       <p class="mt-1.5 text-center text-sm text-content-secondary">
@@ -43,6 +43,7 @@
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import StarterLogo from '@/components/brand/StarterLogo.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import { useUserStore } from '@/stores/user'
@@ -59,7 +60,7 @@ async function handleLogin() {
   try {
     await userStore.login(username.value, password.value)
     ElMessage.success('登录成功')
-    const redirect = (route.query.redirect as string) || '/'
+    const redirect = (route.query.redirect as string) || '/app'
     router.push(redirect)
   } catch {
     // error shown by axios interceptor

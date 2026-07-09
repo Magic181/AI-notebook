@@ -34,7 +34,7 @@
           删除
         </button>
         <router-link
-          :to="`/chat/${notebook.id}`"
+          :to="`/app/chat/${notebook.id}`"
           class="gemini-btn gemini-btn-primary gemini-btn-sm"
         >
           开始对话
@@ -51,7 +51,7 @@
         class="flex flex-col items-center justify-center py-20 text-content-secondary"
       >
         <p>笔记本不存在或无权访问</p>
-        <router-link to="/" class="mt-4 font-medium text-primary hover:underline">
+        <router-link to="/app" class="mt-4 font-medium text-primary hover:underline">
           返回首页
         </router-link>
       </div>
@@ -273,7 +273,7 @@ async function handleDelete() {
   try {
     await notebookStore.deleteNotebook(notebook.value.id)
     ElMessage.success('已删除')
-    router.push('/')
+    router.push('/app')
   } catch {
     // error shown by axios interceptor
   } finally {

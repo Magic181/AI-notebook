@@ -35,7 +35,8 @@ function clearTokens() {
 function redirectToLogin() {
   clearTokens()
   if (!skipAuthRedirect && !window.location.pathname.startsWith('/login')) {
-    window.location.href = '/login'
+    const redirect = `${window.location.pathname}${window.location.search}`
+    window.location.href = `/login?redirect=${encodeURIComponent(redirect)}`
   }
 }
 

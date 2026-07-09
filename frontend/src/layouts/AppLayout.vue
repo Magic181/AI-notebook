@@ -17,16 +17,8 @@
         class="flex h-16 items-center gap-2 px-4"
         :class="uiStore.sidebarCollapsed ? 'justify-center' : 'justify-between'"
       >
-        <router-link to="/" class="flex min-w-0 items-center gap-2.5">
-          <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-sm font-bold text-primary">
-            N
-          </span>
-          <span
-            v-if="!uiStore.sidebarCollapsed"
-            class="gemini-gradient-text truncate text-base font-semibold"
-          >
-            AI Notebook
-          </span>
+        <router-link to="/app" class="flex min-w-0 items-center gap-2.5">
+          <StarterLogo :show-text="!uiStore.sidebarCollapsed" />
         </router-link>
         <button
           v-if="!uiStore.sidebarCollapsed"
@@ -49,9 +41,9 @@
 
       <nav class="flex-1 overflow-y-auto px-3 py-2">
         <router-link
-          to="/"
+          to="/app"
           class="mb-1 flex items-center gap-3 rounded-pill px-3.5 py-2.5 text-sm font-medium transition-colors"
-          :class="isActive('/') ? 'bg-primary-soft text-primary' : 'text-content-secondary hover:bg-surface-hover hover:text-content'"
+          :class="isActive('/app') ? 'bg-primary-soft text-primary' : 'text-content-secondary hover:bg-surface-hover hover:text-content'"
         >
           <span class="shrink-0 text-base">⬡</span>
           <span v-if="!uiStore.sidebarCollapsed">我的笔记本</span>
@@ -64,7 +56,7 @@
           <router-link
             v-for="nb in notebookStore.notebooks.slice(0, 8)"
             :key="nb.id"
-            :to="`/notebook/${nb.id}`"
+            :to="`/app/notebook/${nb.id}`"
             class="mb-0.5 block truncate rounded-pill px-3 py-2 text-sm text-content-secondary transition-colors hover:bg-surface-hover hover:text-content"
           >
             {{ nb.name }}
@@ -119,6 +111,7 @@
 <script setup lang="ts">
 import { onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import StarterLogo from '@/components/brand/StarterLogo.vue'
 import { useUIStore } from '@/stores/ui'
 import { useNotebookStore } from '@/stores/notebook'
 import { useUserStore } from '@/stores/user'

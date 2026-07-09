@@ -91,7 +91,7 @@
             {{ nb.is_favorite ? '已收藏' : '收藏' }}
           </button>
 
-          <router-link :to="`/notebook/${nb.id}`" class="block pr-20">
+          <router-link :to="`/app/notebook/${nb.id}`" class="block pr-20">
             <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-gmd bg-primary-soft text-sm font-semibold text-primary">
               {{ (nb.name || 'N').charAt(0).toUpperCase() }}
             </div>
@@ -216,7 +216,7 @@ async function handleCreate() {
     showCreate.value = false
     form.value = { name: '', description: '' }
     ElMessage.success('创建成功')
-    router.push(`/notebook/${notebook.id}`)
+    router.push(`/app/notebook/${notebook.id}`)
   } catch {
     // error shown by axios interceptor
   } finally {

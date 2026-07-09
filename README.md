@@ -1,79 +1,53 @@
-# AI Notebook
+# AI Notebook Kit
 
-AI 知识工作台 — 上传资料、AI 阅读、智能问答、引用原文。
+AI Notebook Kit 是一个可复用的 AI 知识库 Starter Kit，而不是只能运行单一业务形态的示例应用。它把常见 AI SaaS 的基础能力打包好：账号体系、Notebook、文档上传、解析分块、OCR、视觉描述、RAG 问答、联网搜索、引用溯源、Landing Page、演示站和 Docker 一键部署。
 
-## 当前进度
+## 你会得到什么
 
-| 模块 | 状态 | 说明 |
-|------|------|------|
-| 项目基础 | ✅ 已完成 | Django + Vue3 脚手架、Docker Compose、统一 API 格式 |
-| 用户认证 | ✅ 已完成 | 注册/登录/刷新/退出、JWT 黑名单、启动会话校验 |
-| Notebook 管理 | ✅ 已完成 | CRUD、收藏、搜索、分页 |
-| 文档管理 | ✅ 已完成 | 上传、解析、分块、重新解析、状态追踪（TXT/MD/PDF/DOCX） |
-| 多模态解析 | ✅ 已完成 | 图片抽取、OCR、视觉描述、处理诊断 |
-| AI 聊天 + RAG | ✅ 已完成 | 会话、消息、结构感知检索、重排、引用来源、DeepSeek 调用 |
-| 联网搜索 | ✅ 已完成 | 本地资料 / 联网搜索 / 混合模式、网页来源引用 |
-| 前端体验 | ✅ 已优化 | Chat 引用组件、文档上传列表、Notebook 页面、认证页和侧栏 UI 规范化 |
-
-## 技术栈
-
-| 层级 | 技术 |
+| 模块 | 能力 |
 |------|------|
-| 前端 | Vue 3 + Vite + Pinia + Tailwind CSS + Element Plus |
-| 后端 | Django 5 + DRF + SimpleJWT |
-| 数据库 | MySQL（推荐）/ SQLite（本地快速启动） |
-| 队列 | Celery + Redis（开发可用 eager 模式） |
-| AI | DeepSeek OpenAI-compatible API + Tavily Search + Tesseract OCR + OpenAI-compatible/Zhipu Vision |
+| 品牌与演示 | Logo 组件、Landing Page、公开首页、登录后 Demo 应用区 |
+| 前端应用 | Vue 3 + Vite + Pinia + Tailwind CSS + Element Plus |
+| 后端 API | Django 5 + DRF + SimpleJWT + 统一响应格式 + 限流 |
+| 知识库 | Notebook CRUD、收藏、搜索、文档上传、解析状态追踪 |
+| AI 能力 | DeepSeek/OpenAI-compatible Chat、RAG、Tavily 联网搜索、引用来源 |
+| 多模态 | PDF/DOCX/TXT/MD 解析、图片资产、OCR、可选视觉描述 |
+| 任务队列 | Celery + Redis，支持本地 eager 模式 |
+| 部署 | 生产 Dockerfile、Nginx 反向代理、Docker Compose 全栈编排 |
 
-## 快速开始
-
-### 1. 环境准备
-
-- Python 3.12+
-- Node.js 22 LTS + pnpm 10+
-- MySQL 8.0（或使用 SQLite 模式）
-
-### 2. 配置环境变量
+## 快速预览
 
 ```bash
 cp .env.example .env
+docker compose up -d --build
 ```
 
-编辑 `.env`，配置数据库、JWT、DeepSeek、Tavily、OCR 和视觉模型（详见 [环境配置](docs/devops/环境配置.md)）。
+打开：
 
-本地快速体验建议：
+- Landing Page: `http://localhost:8080`
+- Demo 应用: `http://localhost:8080/app`
+- API 健康检查: `http://localhost:8080/api/v1/health/`
 
-```env
-USE_SQLITE=true
-CELERY_TASK_ALWAYS_EAGER=true
-DEEPSEEK_MODEL=deepseek-v4-flash
-DEEPSEEK_API_KEY=
-TAVILY_API_KEY=
+首次进入 Demo 可以注册账号。需要后台管理员时执行：
+
+```bash
+docker compose exec backend python manage.py createsuperuser
 ```
 
-### 3. 启动后端
+## 本地开发
+
+后端：
 
 ```bash
 cd backend
 python -m venv venv
-
-# Windows
 venv\Scripts\activate
-
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver
 ```
 
-**可选 — Celery Worker（`CELERY_TASK_ALWAYS_EAGER=false` 时）：**
-
-```bash
-celery -A config worker -l info
-```
-
-后端默认运行在 http://localhost:8000
-
-### 4. 启动前端
+前端：
 
 ```bash
 cd frontend
@@ -81,94 +55,88 @@ pnpm install
 pnpm dev
 ```
 
-前端默认运行在 http://localhost:5173，API 通过 Vite 代理转发到后端。
+本地开发默认地址：
 
-### 5. 可选：Docker 基础服务
+- 前端: `http://localhost:5173`
+- 后端: `http://localhost:8000`
+
+如果只想启动 MySQL 和 Redis：
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-提供 MySQL + Redis，端口见 `docker-compose.dev.yml`。
+## 推荐目录
 
-## 项目结构
-
-```
+```text
 AI-Notebook/
+├── backend/                 # Django API、Celery、文档解析、RAG
+│   ├── apps/
+│   │   ├── core/            # 健康检查、统一响应、异常处理、限流
+│   │   ├── users/           # 注册、登录、JWT、当前用户
+│   │   ├── notebooks/       # Notebook CRUD、收藏、搜索
+│   │   ├── documents/       # 上传、解析、OCR、视觉描述、资产
+│   │   └── chat/            # 会话、消息、RAG、联网搜索、LLM 调用
+│   ├── config/              # Django、Celery、URL 配置
+│   └── Dockerfile
+├── frontend/
+│   ├── public/assets/       # Landing 视觉资产
+│   ├── src/
+│   │   ├── api/             # API 客户端
+│   │   ├── components/      # 品牌、UI、业务组件
+│   │   ├── composables/     # 流式聊天等组合逻辑
+│   │   ├── layouts/         # 登录后应用框架
+│   │   ├── pages/           # Landing、认证、Notebook、Chat
+│   │   ├── router/          # 公开页与 /app 应用区路由
+│   │   ├── stores/          # Pinia 状态
+│   │   └── styles/          # 设计 token 与全局样式
+│   ├── Dockerfile
+│   └── nginx.conf
 ├── docs/                    # 产品、工程、AI、设计、运维文档
-├── frontend/                # Vue3 前端
-│   └── src/
-│       ├── api/             # API 封装
-│       ├── components/      # 业务组件（文档上传、引用来源等）
-│       ├── layouts/         # 布局组件
-│       ├── pages/           # 页面
-│       └── stores/          # Pinia 状态
-├── backend/                 # Django 后端
-│   └── apps/
-│       ├── core/            # 健康检查、统一响应
-│       ├── users/           # 用户认证
-│       ├── notebooks/       # 笔记本 CRUD
-│       ├── documents/       # 文档上传、解析、OCR、视觉描述、重新解析
-│       └── chat/            # AI 会话、结构感知 RAG、联网搜索
-├── docker-compose.dev.yml
+├── docker-compose.yml       # 生产式一键部署
+├── docker-compose.dev.yml   # 开发依赖服务
 └── .env.example
 ```
 
-## 已实现 API
+## 自定义 Starter Kit
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/v1/health/` | 健康检查 |
-| POST | `/api/v1/auth/register/` | 注册（自动返回 token） |
-| POST | `/api/v1/auth/login/` | 登录 |
-| POST | `/api/v1/auth/refresh/` | 刷新 token |
-| POST | `/api/v1/auth/logout/` | 退出（黑名单 refresh token） |
-| GET | `/api/v1/auth/me/` | 当前用户信息 |
-| GET/POST | `/api/v1/notebooks/` | 列表 / 创建 |
-| GET/PATCH/DELETE | `/api/v1/notebooks/{id}/` | 详情 / 更新 / 删除 |
-| POST | `/api/v1/notebooks/{id}/favorite/` | 切换收藏 |
-| GET/POST | `/api/v1/notebooks/{id}/documents/` | 文档列表 / 上传 |
-| GET/DELETE | `/api/v1/documents/{id}/` | 文档详情 / 删除 |
-| POST | `/api/v1/documents/{id}/reparse/` | 重新解析文档 |
-| GET/POST | `/api/v1/notebooks/{id}/conversations/` | 会话列表 / 创建 |
-| GET | `/api/v1/conversations/{id}/messages/` | 消息列表 |
-| POST | `/api/v1/conversations/{id}/messages/send/` | 发送消息，支持本地 / 联网 / 混合搜索模式 |
+1. 改品牌：调整 `frontend/src/components/brand/StarterLogo.vue`、Landing 文案和 `frontend/public/assets/starter-hero.png`。
+2. 改应用壳：公开页在 `/`，登录后应用在 `/app`，可把 Notebook 产品替换为自己的业务模块。
+3. 改 AI Provider：在 `.env` 中替换 `DEEPSEEK_BASE_URL`、`DEEPSEEK_MODEL`、`DEEPSEEK_API_KEY`。
+4. 改搜索：配置 `TAVILY_API_KEY` 后可使用联网搜索或混合检索。
+5. 改解析能力：通过 `OCR_*` 和 `VISION_*` 环境变量启用 OCR 与视觉描述。
 
-## 测试
+## 常用命令
 
-```powershell
-# 后端系统检查与聚焦测试
-$env:USE_SQLITE='true'
-backend\venv\Scripts\python.exe backend\manage.py check
-backend\venv\Scripts\python.exe backend\manage.py test apps.chat apps.documents
-
-# 前端检查与构建
+```bash
+# 前端
 cd frontend
 pnpm typecheck
 pnpm lint
+pnpm test
 pnpm build
+
+# 后端
+cd backend
+python manage.py check
+python manage.py test apps.chat apps.documents apps.notebooks apps.users
+
+# Docker
+docker compose up -d --build
+docker compose logs -f backend
+docker compose down
 ```
 
-完整规范见 [API 规范](docs/engineering/API规范.md)。
-
-## 近期优化
-
-- Chat 后端已拆出 `services.py` 和 `search_modes.py`，View 只负责 HTTP 边界和消息落库。
-- Chat 前端引用来源已拆为独立组件，支持文档 / 网页来源差异化展示。
-- RAG 已支持图片、表格、代码、标题等结构化片段意图增强、重排和引用诊断。
-- 文档解析已支持 OCR、视觉描述、重新解析和图片处理诊断。
-- 前端主要页面已统一圆角、移除跨平台不稳定字符图标，并按 `.gitattributes` 固定 LF 行尾。
-- 本地测试上传目录和一次性测试脚本已加入忽略规则，避免误提交本地数据。
+Docker 一键部署使用 `DOCKER_MYSQL_*` 变量，避免和本地开发的 `MYSQL_USER=root` 等配置冲突。
 
 ## 文档
 
-- [文档目录](docs/README.md)
-- [产品路线图](docs/product/产品路线图.md)
-- [需求文档](docs/product/需求文档.md)
+- [Starter Kit 使用指南](docs/STARTER_KIT.md)
+- [部署指南](docs/devops/部署指南.md)
+- [环境配置](docs/devops/环境配置.md)
 - [架构设计](docs/engineering/架构设计.md)
 - [API 规范](docs/engineering/API规范.md)
-- [数据库设计](docs/engineering/数据库设计.md)
-- [环境配置](docs/devops/环境配置.md)
+- [RAG 架构](docs/ai/RAG架构.md)
 
 ## 仓库
 

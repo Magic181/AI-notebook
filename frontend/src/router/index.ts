@@ -4,6 +4,11 @@ import { useUserStore } from '@/stores/user'
 
 const routes: RouteRecordRaw[] = [
   {
+    path: '/',
+    name: 'Landing',
+    component: () => import('@/pages/Landing.vue'),
+  },
+  {
     path: '/login',
     name: 'Login',
     component: () => import('@/pages/Login.vue'),
@@ -16,7 +21,7 @@ const routes: RouteRecordRaw[] = [
     meta: { guestOnly: true },
   },
   {
-    path: '/',
+    path: '/app',
     component: () => import('@/layouts/AppLayout.vue'),
     meta: { requiresAuth: true },
     children: [
