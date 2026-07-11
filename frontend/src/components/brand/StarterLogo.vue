@@ -1,28 +1,22 @@
 <template>
   <div class="inline-flex min-w-0 max-w-full items-center gap-2.5 overflow-hidden">
     <span
-      class="grid h-9 w-9 shrink-0 place-items-center rounded-control bg-primary text-sm font-bold text-white shadow-gsm"
+      class="relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-xl border text-sm font-bold shadow-gsm"
+      :class="tone === 'inverse' ? 'border-white/10 bg-primary text-ink' : 'border-ink/10 bg-ink text-white'"
       aria-hidden="true"
     >
-      <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none">
-        <path
-          d="M6.5 6.8c0-1.2 1-2.2 2.2-2.2h6.6c1.2 0 2.2 1 2.2 2.2v10.4c0 1.2-1 2.2-2.2 2.2H8.7c-1.2 0-2.2-1-2.2-2.2V6.8Z"
-          stroke="currentColor"
-          stroke-width="1.8"
-        />
-        <path
-          d="M9.3 8.4h5.4M9.3 11.7h5.4M9.3 15h3.2"
-          stroke="currentColor"
-          stroke-linecap="round"
-          stroke-width="1.8"
-        />
-      </svg>
+      <span class="absolute left-1.5 top-1.5 h-2 w-2 border-l border-t border-current" />
+      <span class="text-[10px] font-extrabold tracking-[-0.08em]">MB</span>
+      <span class="absolute bottom-1.5 right-1.5 h-2 w-2 border-b border-r border-current" />
     </span>
     <span v-if="showText" class="min-w-0 overflow-hidden">
-      <span class="block truncate text-base font-semibold tracking-tight text-content">
-        {{ title }}
+      <span
+        class="block truncate text-[15px] font-[700] tracking-[-0.035em]"
+        :class="tone === 'inverse' ? 'text-white' : 'text-content'"
+      >
+        {{ title }}<span class="text-primary">.</span>
       </span>
-      <span v-if="subtitle" class="block truncate text-xs text-content-secondary">
+      <span v-if="subtitle" class="mt-0.5 block truncate text-[9px] font-medium uppercase tracking-[0.11em]" :class="tone === 'inverse' ? 'text-white/40' : 'text-content-secondary'">
         {{ subtitle }}
       </span>
     </span>
@@ -35,11 +29,13 @@ withDefaults(
     title?: string
     subtitle?: string
     showText?: boolean
+    tone?: 'default' | 'inverse'
   }>(),
   {
     title: 'MindBase Kit',
     subtitle: '',
     showText: true,
+    tone: 'default',
   },
 )
 </script>

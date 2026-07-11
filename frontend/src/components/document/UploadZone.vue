@@ -9,7 +9,7 @@
     @dragleave.prevent="isDragging = false"
     @drop.prevent="handleDrop"
   >
-    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-pill bg-gemini-accent text-white shadow-gmd">
+    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-control bg-primary text-ink shadow-gmd">
       <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
         <polyline points="17 8 12 3 7 8" />
@@ -33,7 +33,7 @@
         @change="handleFileSelect"
       />
       <span
-        class="gemini-btn gemini-btn-primary"
+        class="kit-button kit-button-primary"
         :class="uploading ? 'pointer-events-none opacity-50' : ''"
       >
         {{ uploading ? '上传中...' : '选择文件' }}

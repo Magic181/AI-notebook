@@ -1,7 +1,7 @@
 <template>
   <button
     :class="[
-      'gemini-btn',
+      'kit-button',
       fullWidth ? 'w-full' : '',
       variantClass,
       sizeClass,
@@ -14,7 +14,7 @@
 <script setup lang="ts">
 const props = withDefaults(
   defineProps<{
-    variant?: 'primary' | 'ghost' | 'danger'
+    variant?: 'primary' | 'accent' | 'tonal' | 'ghost' | 'danger'
     size?: 'sm' | 'md'
     fullWidth?: boolean
   }>(),
@@ -26,13 +26,15 @@ const props = withDefaults(
 )
 
 const variantClass = {
-  primary: 'gemini-btn-primary',
-  ghost: 'gemini-btn-ghost',
-  danger: 'gemini-btn-danger',
+  primary: 'kit-button-primary',
+  accent: 'kit-button-accent',
+  tonal: 'kit-button-tonal',
+  ghost: 'kit-button-ghost',
+  danger: 'kit-button-danger',
 }[props.variant]
 
 const sizeClass = {
-  sm: 'gemini-btn-sm',
+  sm: 'kit-button-sm',
   md: '',
 }[props.size]
 </script>

@@ -301,8 +301,8 @@ async function copyText(content: string) {
   overflow-wrap: anywhere;
   border-left: 2px solid var(--ai-accent-soft);
   box-shadow:
-    inset 0 0 0 1px rgba(226, 237, 231, 0.54),
-    0 12px 30px -26px rgba(16, 185, 129, 0.35);
+    inset 0 0 0 1px var(--border),
+    var(--shadow-default);
 }
 
 .ai-avatar {
@@ -315,15 +315,15 @@ async function copyText(content: string) {
   border-radius: 9999px;
   color: var(--ai-accent);
   background: var(--ai-accent-soft);
-  box-shadow: inset 0 0 0 1px rgba(124, 111, 240, 0.16);
+  box-shadow: inset 0 0 0 1px var(--ai-accent-soft);
 }
 
 .user-edit-bubble {
-  border: 1px solid rgba(16, 185, 129, 0.32);
+  border: 1px solid var(--primary);
   background: var(--bg-elevated);
   box-shadow:
-    0 0 0 3px rgba(16, 185, 129, 0.08),
-    0 14px 32px -24px rgba(0, 0, 0, 0.26);
+    0 0 0 3px var(--primary-soft),
+    var(--shadow-md);
 }
 
 .user-edit-textarea {
@@ -367,7 +367,7 @@ async function copyText(content: string) {
 
 .user-edit-action-btn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.16);
+  box-shadow: 0 0 0 3px var(--primary-soft);
 }
 
 .user-edit-action-btn:disabled {
@@ -417,7 +417,7 @@ async function copyText(content: string) {
 
 .message-action-btn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.16);
+  box-shadow: 0 0 0 3px var(--primary-soft);
 }
 
 :global(.dark) .markdown-body :deep(.table-scroll),
@@ -647,30 +647,30 @@ async function copyText(content: string) {
   margin: 0.8rem 0 1.1rem;
   max-width: 100%;
   overflow-x: auto;
-  border: 1px solid rgba(226, 237, 231, 0.72);
+  border: 1px solid var(--border);
   border-radius: 0.75rem;
-  background: #ffffff;
+  background: var(--bg-elevated);
 }
 
 .markdown-body :deep(table) {
   width: 100%;
   min-width: 560px;
   border-collapse: collapse;
-  background: #ffffff;
+  background: var(--bg-elevated);
   font-size: 0.9rem;
   line-height: 1.65;
 }
 
 .markdown-body :deep(th),
 .markdown-body :deep(td) {
-  border-bottom: 1px solid rgba(226, 237, 231, 0.68);
+  border-bottom: 1px solid var(--border);
   padding: 0.65rem 0.8rem;
   text-align: left;
   vertical-align: top;
 }
 
 .markdown-body :deep(th) {
-  background: #f4f8f6;
+  background: var(--bg-secondary);
   color: var(--text);
   font-weight: 700;
   white-space: nowrap;

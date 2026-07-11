@@ -5,6 +5,14 @@ export default {
   theme: {
     extend: {
       colors: {
+        ink: {
+          DEFAULT: 'var(--ink)',
+          muted: 'var(--ink-muted)',
+        },
+        accent: {
+          DEFAULT: 'var(--accent)',
+          soft: 'var(--accent-soft)',
+        },
         primary: {
           DEFAULT: 'var(--primary)',
           hover: 'var(--primary-hover)',
@@ -53,7 +61,7 @@ export default {
         'card-active': 'var(--shadow-active)',
       },
       backgroundImage: {
-        'gemini-accent': 'var(--accent-gradient)',
+        'brand-accent': 'var(--primary)',
       },
     },
   },

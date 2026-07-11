@@ -39,14 +39,14 @@
 
         <button
           :disabled="isReparseDisabled(doc)"
-          class="gemini-btn gemini-btn-ghost gemini-btn-sm"
+          class="kit-button kit-button-ghost kit-button-sm"
           @click="$emit('reparse', doc)"
         >
           {{ isReparsing(doc.id) ? '入队中...' : '重新解析' }}
         </button>
 
         <button
-          class="gemini-btn gemini-btn-danger gemini-btn-sm"
+          class="kit-button kit-button-danger kit-button-sm"
           @click="$emit('delete', doc)"
         >
           删除

@@ -1,68 +1,88 @@
 # Starter Kit 使用指南
 
-> 最后更新：2026-07-09
+> 最后更新：2026-07-10
 
-MindBase Kit 的目标是提供一个可继续扩展的 AI 知识产品底座。它保留了一个完整 Demo，但代码结构、路由和部署方式都按 Starter Kit 组织，方便你替换品牌、产品模块和 AI Provider。
+MindBase Kit 是 AI 产品工程底座，不是只能继续开发成 Notebook 的单一应用。仓库内保留 Knowledge Demo，用来验证认证、摄取、解析、检索、引用和流式对话链路；其他业务可以复用同一套基础设施。
 
-## 核心形态
+## 能力状态
 
-| 区域 | 路径 | 说明 |
-|------|------|------|
-| Landing Page | `/` | 公开介绍页，展示品牌、能力、技术栈和部署方式 |
-| 认证页 | `/login`, `/register` | Starter Demo 的账号入口 |
-| Dashboard | `/app` | SaaS 指标、活动、存储、AI Usage 和 Plan 概览 |
-| Knowledge Base | `/app/notebooks` | 登录后的 Notebook、文档和聊天体验 |
-| Admin | `/app/admin` | 用户、API Keys、模型路由、审计日志 UI |
-| Billing | `/app/billing` | 订阅、套餐、Usage 和 Billing Events UI |
-| API | `/api/v1/` | Django REST API |
-| Admin | `/admin/` | Django 管理后台 |
+| 类型 | 含义 | 当前模块 |
+|---|---|---|
+| Wired | 后端、前端与运行链路均已接通 | Auth、Knowledge ingestion、RAG chat、Operations |
+| Adapter | 提供 UI contract 和推荐边界，需要接入自己的服务 | Team & access、Billing |
 
-## 品牌定制
+公开页面与工作台会直接展示这个区别，避免把静态 Demo 数据包装成已经完成的商业功能。
 
-品牌入口集中在：
+## 前端结构
 
+```text
+frontend/src/
+├── app/
+│   ├── App.vue
+│   ├── router.ts
+│   └── layouts/AppShell.vue
+├── config/starter.ts
+├── features/
+│   ├── marketing/
+│   ├── auth/
+│   ├── dashboard/
+│   ├── knowledge/
+│   ├── chat/
+│   ├── admin/
+│   └── billing/
+├── components/
+├── api/
+├── stores/
+└── styles/
+```
+
+- `app/` 只负责应用启动、路由和壳层。
+- `config/starter.ts` 集中保存品牌、导航、仓库地址和模块 manifest。
+- `features/` 按用户可见能力组织页面。
+- `components/` 放跨 feature 复用的 UI、导航和领域组件。
+- `api/` 与 `stores/` 保持稳定，页面重组不改变接口契约。
+
+## 第一次定制
+
+### 1. 品牌与导航
+
+优先修改：
+
+- `frontend/src/config/starter.ts`
 - `frontend/src/components/brand/StarterLogo.vue`
-- `frontend/src/pages/Landing.vue`
-- `frontend/public/assets/starter-hero.png`
-- `frontend/public/assets/readme/`
+- `frontend/public/favicon.svg`
 - `frontend/index.html`
+- `frontend/src/styles/main.css`
 
-建议先替换：
+设计 token 已集中到 `main.css` 的 CSS variables。更换颜色、圆角、阴影和明暗主题时，不需要逐页搜索硬编码颜色。
 
-1. Logo 标题和副标题。
-2. Landing 的 H1、价值描述和功能卡片。
-3. Hero 图片。
-4. README 中的项目名、仓库地址和部署域名。
+### 2. 删除不需要的 surface
 
-## 产品模块替换
+路由集中在 `frontend/src/app/router.ts`。删除 feature 时同时移除：
 
-登录后应用从 `/app` 开始，核心页面在 `frontend/src/pages/`：
+1. `features/<name>/` 页面。
+2. `config/starter.ts` 的导航和模块声明。
+3. `app/router.ts` 的路由。
+4. 对应后端 app（仅当没有其他模块依赖它）。
 
-- `Dashboard.vue`: SaaS 指标、活动、存储、套餐和 AI Usage。
-- `Home.vue`: Notebook 列表与创建入口。
-- `Notebook.vue`: 文档上传、文档列表、重新解析。
-- `Chat.vue`: 会话、消息、RAG 问答和联网搜索。
-- `AdminConsole.vue`: 管理后台 UI surface。
-- `Billing.vue`: Pricing/Subscription/Usage UI surface。
+Team 与 Billing 默认是 optional surface，可以直接裁剪。
 
-后端按 Django app 拆分：
+### 3. 替换 Demo 领域
 
-- `apps.users`: 账号与 JWT。
-- `apps.notebooks`: 工作区或业务容器。
-- `apps.documents`: 文件、解析、OCR、视觉描述。
-- `apps.chat`: 会话、RAG、搜索模式、LLM 服务。
+Knowledge Demo 使用 Notebook 作为业务容器。新产品通常可以：
 
-如果你要做新的 AI SaaS，通常保留 `users`、`core`、`documents`、`chat`，把 `notebooks` 改名或包一层业务概念即可。
+- 保留 `users`、`core`、`documents` 和 `chat`。
+- 将 `notebooks` 替换为 Project、Case、Customer、Workspace 等领域对象。
+- 继续复用摄取、chunk、OCR、引用与流式回答能力。
 
-## AI Provider
+## Provider boundaries
 
-聊天模型使用 OpenAI-compatible 接口。常用变量：
+聊天模型走 OpenAI-compatible 配置：
 
 ```env
 DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
 DEEPSEEK_MODEL=deepseek-v4-flash
 DEEPSEEK_API_KEY=
-DEEPSEEK_TIMEOUT_SECONDS=60
 ```
 
 联网搜索：
@@ -83,31 +103,24 @@ VISION_MODEL=gpt-4o-mini
 VISION_API_KEY=
 ```
 
-## 部署路径
+对象存储、权限与计费建议保持同样的 adapter 思路，不要把 provider SDK 直接散落在 view 或页面里。
 
-生产式本地验证：
+## 运行与发布
 
 ```bash
 cp .env.example .env
 docker compose up -d --build
 ```
 
-Compose 服务：
+Compose 包含 frontend、backend、worker、mysql 和 redis。发布前至少修改密钥、域名、数据库密码和 AI provider 配置。
 
-| 服务 | 说明 |
-|------|------|
-| `frontend` | Nginx 托管前端静态文件，并反向代理 `/api` 和 `/admin` |
-| `backend` | Django + Gunicorn API |
-| `worker` | Celery 文档解析和异步任务 |
-| `mysql` | MySQL 8 数据库 |
-| `redis` | Celery broker/result backend |
-
-## 发布前检查
+## 检查
 
 ```bash
 cd frontend
 pnpm typecheck
 pnpm lint
+pnpm test
 pnpm build
 
 cd ../backend
@@ -115,18 +128,4 @@ python manage.py check
 python manage.py test apps.chat apps.documents apps.notebooks apps.users
 ```
 
-服务器发布时至少修改：
-
-- `DJANGO_SECRET_KEY`
-- `DJANGO_ALLOWED_HOSTS`
-- `DJANGO_CORS_ALLOWED_ORIGINS`
-- `MYSQL_ROOT_PASSWORD`
-- `MYSQL_PASSWORD`
-- AI Provider API Key
-
-## 裁剪建议
-
-- 只做本地知识库：保留 `documents` 和 `chat`，关闭 `TAVILY_API_KEY`。
-- 做企业知识库：接入对象存储，把 `MEDIA_ROOT` 替换为 S3/MinIO 适配层。
-- 做多租户 SaaS：给 Notebook 增加 workspace/team 维度，并把权限逻辑下沉到 queryset。
-- 做插件化 AI 产品：保留 `/app` 框架，把 Notebook 页面替换为新的业务页面。
+生成目录、coverage、临时浏览器截图和测试报告不应提交到仓库；测试源码本身需要保留。README 中的发布级演示素材属于例外，但必须由当前版本重新录制，UI 变更后不得继续复用旧素材。

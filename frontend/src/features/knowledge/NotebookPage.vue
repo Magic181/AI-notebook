@@ -1,48 +1,44 @@
 <template>
   <div class="flex h-full flex-col">
-    <header class="flex min-h-16 shrink-0 flex-col gap-3 px-6 py-3 md:flex-row md:items-center md:justify-between">
-      <div class="min-w-0 flex-1">
-        <h2 class="truncate text-lg font-semibold tracking-tight text-content">
-          {{ notebook?.name || 'Notebook' }}
-        </h2>
-        <p v-if="notebook?.description" class="truncate text-sm text-content-secondary">
-          {{ notebook.description }}
-        </p>
-      </div>
-      <div v-if="notebook" class="flex w-full flex-wrap items-center gap-2 md:ml-4 md:w-auto md:shrink-0 md:justify-end">
+    <PageHeader
+      eyebrow="Demo feature / Ingestion"
+      :title="notebook?.name || 'Knowledge space'"
+      :description="notebook?.description || '上传文档，观察解析状态，然后进入基于来源的 RAG 对话。'"
+    >
+      <template v-if="notebook" #actions>
         <button
-          class="gemini-btn gemini-btn-sm"
+          class="kit-button kit-button-sm"
           :class="
             notebook.is_favorite
               ? 'border-amber-400/10 bg-amber-400/15 text-amber-600 hover:bg-amber-400/20'
-              : 'gemini-btn-ghost'
+              : 'kit-button-ghost'
           "
           @click="handleToggleFavorite"
         >
           {{ notebook.is_favorite ? '已收藏' : '收藏' }}
         </button>
         <button
-          class="gemini-btn gemini-btn-ghost gemini-btn-sm"
+          class="kit-button kit-button-ghost kit-button-sm"
           @click="showEdit = true"
         >
           编辑
         </button>
         <button
-          class="gemini-btn gemini-btn-danger gemini-btn-sm"
+          class="kit-button kit-button-danger kit-button-sm"
           @click="showDelete = true"
         >
           删除
         </button>
         <router-link
           :to="`/app/chat/${notebook.id}`"
-          class="gemini-btn gemini-btn-primary gemini-btn-sm"
+          class="kit-button kit-button-primary kit-button-sm"
         >
           开始对话
         </router-link>
-      </div>
-    </header>
+      </template>
+    </PageHeader>
 
-    <div class="flex-1 overflow-y-auto p-6">
+    <div class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
       <div v-if="loading" class="flex items-center justify-center py-20">
         <p class="text-content-secondary">加载中...</p>
       </div>
@@ -51,8 +47,8 @@
         class="flex flex-col items-center justify-center py-20 text-content-secondary"
       >
         <p>笔记本不存在或无权访问</p>
-        <router-link to="/app" class="mt-4 font-medium text-primary hover:underline">
-          返回首页
+        <router-link to="/app/notebooks" class="mt-4 font-medium text-primary hover:underline">
+          返回知识空间
         </router-link>
       </div>
       <div v-else class="space-y-6">
@@ -83,7 +79,7 @@
         v-model="editForm.description"
         placeholder="描述（可选）"
         rows="3"
-        class="w-full resize-none rounded-gmd border border-line bg-surface-secondary px-4 py-3 text-content outline-none transition-all placeholder:text-content-secondary focus:border-primary focus:bg-surface focus:ring-4 focus:ring-primary-soft"
+        class="w-full resize-none rounded-control border border-line bg-surface-elevated px-4 py-3 text-content outline-none transition placeholder:text-content-secondary focus:border-primary focus:ring-4 focus:ring-primary-soft"
       />
       <div class="flex justify-end gap-3">
         <BaseButton
@@ -150,6 +146,7 @@ import UploadZone from '@/components/document/UploadZone.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
 import { useDocumentStore } from '@/stores/document'
 import { useNotebookStore } from '@/stores/notebook'
 
@@ -273,7 +270,7 @@ async function handleDelete() {
   try {
     await notebookStore.deleteNotebook(notebook.value.id)
     ElMessage.success('已删除')
-    router.push('/app')
+    router.push('/app/notebooks')
   } catch {
     // error shown by axios interceptor
   } finally {

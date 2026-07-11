@@ -119,8 +119,8 @@ function handleSheetSelect(id: number) {
 .jump-rail:hover,
 .jump-rail:focus-within {
   width: min(14rem, calc(100vw - 1.5rem));
-  border: 1px solid rgba(226, 237, 231, 0.78);
-  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
   box-shadow: var(--shadow-hover);
   backdrop-filter: blur(14px);
 }
@@ -133,7 +133,7 @@ function handleSheetSelect(id: number) {
   gap: 0.75rem;
   border-radius: var(--radius-control);
   padding: 0.42rem 0.2rem;
-  color: #8a9891;
+  color: var(--text-secondary);
   font-size: 0.875rem;
   line-height: 1.2;
   transition:
@@ -182,7 +182,7 @@ function handleSheetSelect(id: number) {
   width: 0.5rem;
   flex-shrink: 0;
   border-radius: 9999px;
-  background: #d3ddd8;
+  background: var(--border);
   transition:
     width 140ms ease,
     background-color 140ms ease;
@@ -212,7 +212,7 @@ function handleSheetSelect(id: number) {
     justify-content: center;
     gap: 0.2rem;
     border-radius: var(--radius-control);
-    background: rgba(255, 255, 255, 0.86);
+    background: var(--bg-elevated);
     box-shadow: var(--shadow-default);
   }
 
@@ -302,17 +302,4 @@ function handleSheetSelect(id: number) {
   background: var(--primary-soft);
 }
 
-:global(.dark) .jump-rail:hover,
-:global(.dark) .jump-rail:focus-within {
-  border-color: rgba(42, 53, 48, 0.78);
-  background: rgba(30, 36, 33, 0.82);
-}
-
-:global(.dark) .jump-marker {
-  background: #3a4741;
-}
-
-:global(.dark) .jump-touch-trigger {
-  background: rgba(30, 36, 33, 0.86);
-}
 </style>

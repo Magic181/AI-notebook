@@ -1,7 +1,7 @@
 <template>
   <input
     :value="modelValue"
-    class="w-full rounded-gmd border border-line bg-surface-secondary px-4 py-3 text-content outline-none transition-all placeholder:text-content-secondary focus:border-primary focus:bg-surface focus:ring-4 focus:ring-primary-soft"
+    class="w-full rounded-xl border border-line bg-white px-4 py-3 text-sm text-content shadow-gsm outline-none transition placeholder:text-content-secondary focus:border-primary focus:ring-4 focus:ring-primary-soft"
     @input="handleInput"
   />
 </template>

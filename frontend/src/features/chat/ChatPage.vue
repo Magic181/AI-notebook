@@ -1,13 +1,13 @@
 <template>
   <div class="flex h-full">
-    <aside class="hidden w-64 shrink-0 border-r border-line bg-surface-secondary md:block">
-      <div class="px-4 py-4">
-        <p class="text-sm font-medium text-content">会话</p>
-        <p class="mt-1 text-xs text-content-secondary">{{ notebookDisplayLabel }}</p>
+    <aside class="hidden w-[272px] shrink-0 border-r border-line/80 bg-surface-elevated md:block">
+      <div class="border-b border-line px-5 py-5">
+        <p class="section-label">Conversation index</p>
+        <p class="truncate text-sm font-bold text-content">{{ notebookDisplayLabel }}</p>
       </div>
       <div class="px-3 pb-2">
         <button
-          class="gemini-btn gemini-btn-tonal w-full"
+          class="kit-button kit-button-tonal w-full"
           :disabled="creatingConversation"
           @click="createConversation()"
         >
@@ -27,7 +27,7 @@
           class="flex flex-col items-center gap-2 rounded-glg border border-dashed border-line px-3 py-6 text-center"
         >
           <p class="text-sm text-content-secondary">加载会话失败</p>
-          <button class="gemini-btn gemini-btn-ghost gemini-btn-sm" @click="initChat">
+          <button class="kit-button kit-button-ghost kit-button-sm" @click="initChat">
             重试
           </button>
         </div>
@@ -51,7 +51,7 @@
             />
             <button
               type="submit"
-              class="gemini-btn gemini-btn-tonal gemini-btn-sm shrink-0"
+              class="kit-button kit-button-tonal kit-button-sm shrink-0"
               :disabled="renamingConversation"
             >
               保存
@@ -67,7 +67,7 @@
           </button>
           <button
             v-if="editingConversationId !== c.id"
-            class="gemini-btn gemini-btn-ghost gemini-btn-sm shrink-0 opacity-0 group-hover:opacity-100"
+            class="kit-button kit-button-ghost kit-button-sm shrink-0 opacity-0 group-hover:opacity-100"
             :disabled="renamingConversation"
             @click="startEditingConversation(c)"
           >
@@ -75,7 +75,7 @@
           </button>
           <button
             v-if="editingConversationId !== c.id"
-            class="gemini-btn gemini-btn-danger gemini-btn-sm mr-1 shrink-0 opacity-0 group-hover:opacity-100"
+            class="kit-button kit-button-danger kit-button-sm mr-1 shrink-0 opacity-0 group-hover:opacity-100"
             :disabled="deletingConversation || renamingConversation"
             @click="openDeleteConversation(c)"
           >
@@ -86,10 +86,11 @@
     </aside>
 
     <div class="flex flex-1 flex-col">
-      <header class="flex h-16 shrink-0 items-center justify-between px-6">
+      <header class="flex h-[76px] shrink-0 items-center justify-between border-b border-line/80 bg-surface-elevated/80 px-6 backdrop-blur-xl">
         <div class="min-w-0">
-          <h2 class="truncate text-lg font-semibold tracking-tight">
-            <span class="gemini-gradient-text">AI 对话</span>
+          <p class="section-label">Grounded chat</p>
+          <h2 class="truncate text-lg font-bold tracking-[-0.03em]">
+            <span class="brand-accent-text">AI 对话</span>
           </h2>
           <p class="truncate text-xs text-content-secondary">
             {{ headerHint }}
@@ -97,14 +98,14 @@
         </div>
         <div class="flex shrink-0 items-center gap-2 md:hidden">
           <button
-            class="gemini-btn gemini-btn-ghost"
+            class="kit-button kit-button-ghost"
             @click="createConversation()"
           >
             新会话
           </button>
           <button
             v-if="activeConversation"
-            class="gemini-btn gemini-btn-danger"
+            class="kit-button kit-button-danger"
             :disabled="deletingConversation"
             @click="openDeleteConversation(activeConversation)"
           >
@@ -116,7 +117,7 @@
       <div class="flex min-h-0 flex-1">
         <div
           ref="messagesViewport"
-          class="h-full min-w-0 flex-1 space-y-4 overflow-y-auto p-6"
+          class="chat-workspace h-full min-w-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-6"
           @scroll="handleMessagesScroll"
         >
           <MessageList
@@ -476,3 +477,12 @@ async function initChat() {
 
 onMounted(initChat)
 </script>
+
+<style scoped>
+.chat-workspace {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--text) 3.5%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--text) 3.5%, transparent) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+</style>

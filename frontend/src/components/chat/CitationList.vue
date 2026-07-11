@@ -285,7 +285,7 @@ function stringValue(value: unknown) {
 .citation-section {
   margin-top: 1.75rem;
   padding-top: 1rem;
-  border-top: 1px solid rgba(226, 237, 231, 0.86);
+  border-top: 1px solid var(--border);
 }
 
 .citation-section-header {
@@ -301,7 +301,7 @@ function stringValue(value: unknown) {
   height: 0.375rem;
   width: 0.375rem;
   border-radius: 9999px;
-  background: #10b981;
+  background: var(--primary);
 }
 
 .citation-card {
@@ -321,11 +321,11 @@ function stringValue(value: unknown) {
   min-height: 1.75rem;
   align-items: center;
   gap: 0.25rem;
-  border-radius: 9999px;
-  border: 1px solid rgba(213, 226, 219, 0.95);
-  background: rgba(255, 255, 255, 0.72);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
   padding: 0.25rem 0.55rem;
-  color: #50615a;
+  color: var(--text-secondary);
   font-size: 0.72rem;
   font-weight: 600;
   line-height: 1;
@@ -337,9 +337,9 @@ function stringValue(value: unknown) {
 }
 
 .citation-toggle:hover {
-  border-color: rgba(16, 185, 129, 0.24);
-  background: #f2faf6;
-  color: #047857;
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--text);
 }
 
 .citation-toggle:active {
@@ -347,7 +347,7 @@ function stringValue(value: unknown) {
 }
 
 .citation-toggle:focus-visible {
-  outline: 2px solid rgba(16, 185, 129, 0.28);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
@@ -358,18 +358,18 @@ function stringValue(value: unknown) {
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  border-radius: 9999px;
-  color: #047857;
-  background: #e6f4ea;
+  border-radius: var(--radius-control);
+  color: var(--primary-contrast);
+  background: var(--primary);
 }
 
 .citation-meta {
   flex-shrink: 0;
-  border-radius: 9999px;
-  border: 1px solid rgba(226, 237, 231, 0.9);
-  background: rgba(255, 255, 255, 0.76);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
   padding: 0.125rem 0.55rem;
-  color: #8a9891;
+  color: var(--text-secondary);
   font-size: 0.75rem;
   line-height: 1.35;
 }
@@ -387,7 +387,7 @@ function stringValue(value: unknown) {
 }
 
 .citation-tag-neutral {
-  background: rgba(255, 255, 255, 0.75);
+  background: var(--bg-elevated);
   color: var(--text-secondary);
 }
 
@@ -406,20 +406,4 @@ function stringValue(value: unknown) {
   color: var(--status-low);
 }
 
-:global(.dark) .citation-section {
-  border-top-color: rgba(42, 53, 48, 0.86);
-}
-
-:global(.dark) .citation-meta,
-:global(.dark) .citation-tag-neutral,
-:global(.dark) .citation-toggle {
-  background: rgba(18, 22, 20, 0.72);
-  border-color: rgba(42, 53, 48, 0.9);
-}
-
-:global(.dark) .citation-toggle:hover {
-  background: rgba(16, 185, 129, 0.12);
-  border-color: rgba(16, 185, 129, 0.25);
-  color: #7dd3a8;
-}
 </style>
